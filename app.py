@@ -12,7 +12,6 @@ from modules.filtros import renderizar_filtros
 from modules.mapa import renderizar_mapa
 from modules.detalle_visita import mostrar_foto, _badge_tipo, _formatear_fecha
 
-# ── Configuración de página ───────────────────────────────────────────────────
 st.set_page_config(
     layout="wide",
     page_title="Visitas Oficiales — Prueba",
@@ -21,7 +20,6 @@ st.set_page_config(
 
 
 def cargar_datos() -> pd.DataFrame:
-    """Carga el CSV de visitas desde la ruta relativa al proyecto."""
     ruta_csv = os.path.join(os.path.dirname(__file__), "data", "visitas.csv")
     df = pd.read_csv(ruta_csv, encoding="utf-8")
     df["fecha"] = pd.to_datetime(df["fecha"])
@@ -29,7 +27,6 @@ def cargar_datos() -> pd.DataFrame:
 
 
 def calcular_metricas(df: pd.DataFrame) -> dict:
-    """Calcula las 4 métricas principales según el DataFrame filtrado."""
     if df.empty:
         return {"total_visitas": 0, "paises_visitados": 0,
                 "total_dias": 0, "tipo_frecuente": "—"}
@@ -42,53 +39,55 @@ def calcular_metricas(df: pd.DataFrame) -> dict:
 
 
 def panel_detalle_principal(fila: pd.Series) -> None:
-    """
-    Muestra el panel de detalle de la visita seleccionada en el área principal,
-    debajo del mapa. Incluye foto, badge, métricas y descripción.
-    """
     st.divider()
-
     col_foto, col_info = st.columns([1, 2])
 
     with col_foto:
         mostrar_foto(fila, use_container_width=True)
 
     with col_info:
-        # Encabezado
         st.markdown(f"## {fila['pais']} — {fila['ciudad']}")
         tipo = str(fila.get("tipo_actividad", ""))
         st.markdown(_badge_tipo(tipo), unsafe_allow_html=True)
         st.markdown("")
 
-        # Métricas rápidas
         m1, m2 = st.columns(2)
         with m1:
             st.metric("Duración", f"{int(fila['duracion_dias'])} días")
         with m2:
             st.metric("Fecha", _formatear_fecha(str(fila.get("fecha", ""))))
 
-        # Descripción y contraparte
         st.write(fila.get("descripcion", "Sin descripción disponible."))
         st.info(f"**Contraparte:** {fila.get('contraparte', 'No especificada')}")
 
-        # Botón cerrar
         if st.button("✕ Cerrar detalle", key="btn_cerrar", use_container_width=True):
             st.session_state["visita_seleccionada"] = None
+            st.session_state["_ultimo_clic_mapa"] = None
             st.rerun()
 
 
 def main():
-    """Función principal que orquesta todos los componentes de la app."""
-
     # ── Inicializar session_state ─────────────────────────────────────────────
     if "visita_seleccionada" not in st.session_state:
         st.session_state["visita_seleccionada"] = None
+    if "_ultimo_clic_mapa" not in st.session_state:
+        st.session_state["_ultimo_clic_mapa"] = None
 
     # ── Cargar datos ──────────────────────────────────────────────────────────
     df_completo = cargar_datos()
 
     # ── Sidebar: solo filtros ─────────────────────────────────────────────────
     df_filtrado = renderizar_filtros(df_completo)
+
+    # ── Si la visita seleccionada ya no está en el filtro activo, limpiarla ───
+    # Esto resuelve: "filtro Colombia pero sigue mostrando detalle de Japón"
+    visita_activa = st.session_state.get("visita_seleccionada")
+    if visita_activa is not None:
+        ids_visibles = df_filtrado["id"].tolist()
+        if int(visita_activa["id"]) not in ids_visibles:
+            st.session_state["visita_seleccionada"] = None
+            st.session_state["_ultimo_clic_mapa"] = None
+            visita_activa = None
 
     # ── Cabecera ──────────────────────────────────────────────────────────────
     st.title("🌍 Visitas Oficiales — Máxima Autoridad")
@@ -110,11 +109,12 @@ def main():
     # ── Mapa satélite ─────────────────────────────────────────────────────────
     fila_clickeada = renderizar_mapa(df_filtrado)
 
+    # Solo actualizar si el clic es realmente nuevo (coordenadas distintas)
     if fila_clickeada is not None:
         st.session_state["visita_seleccionada"] = fila_clickeada
         st.rerun()
 
-    # ── Panel de detalle debajo del mapa (sin sidebar) ────────────────────────
+    # ── Panel de detalle debajo del mapa ──────────────────────────────────────
     visita_activa = st.session_state.get("visita_seleccionada")
     if visita_activa is not None:
         panel_detalle_principal(visita_activa)

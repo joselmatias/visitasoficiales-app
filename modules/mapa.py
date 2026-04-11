@@ -57,39 +57,28 @@ def construir_mapa(df: pd.DataFrame) -> folium.Map:
         folium.Map: Objeto mapa listo para renderizar.
     """
 
-    # ── Base del mapa ─────────────────────────────────────────────────────────
+    # ── Base del mapa — satélite fijo sin switcher de capas ──────────────────
     mapa = folium.Map(
         location=[20, 10],
         zoom_start=2,
-        tiles=None,                  # Sin tiles por defecto
-        control_scale=True,          # Escala de distancia
+        tiles=None,
+        control_scale=True,
     )
 
-    # ── Capa 1: Satélite ESRI ─────────────────────────────────────────────────
+    # Capa satélite ESRI (única, fija)
     folium.TileLayer(
         tiles=TILE_SATELITE,
         attr="Esri World Imagery",
-        name="🛰️ Satélite",
-        overlay=False,
-        control=True,
+        name="Satélite",
     ).add_to(mapa)
 
-    # ── Capa 2: Etiquetas de países (overlay transparente) ────────────────────
+    # Etiquetas de países superpuestas al satélite
     folium.TileLayer(
         tiles=TILE_LABELS,
         attr="Esri Reference",
-        name="🏷️ Etiquetas",
+        name="Etiquetas",
         overlay=True,
-        control=True,
         opacity=0.85,
-    ).add_to(mapa)
-
-    # ── Capa 3: OpenStreetMap como alternativa ─────────────────────────────────
-    folium.TileLayer(
-        tiles="OpenStreetMap",
-        name="🗺️ Mapa Callejero",
-        overlay=False,
-        control=True,
     ).add_to(mapa)
 
     # ── Línea de trayectoria cronológica ──────────────────────────────────────
@@ -225,9 +214,6 @@ def construir_mapa(df: pd.DataFrame) -> folium.Map:
         prefix="Lat/Lon:",
     ).add_to(mapa)
 
-    # Control de capas (satélite / callejero / etiquetas)
-    folium.LayerControl(position="topright", collapsed=False).add_to(mapa)
-
     return mapa
 
 
@@ -256,22 +242,33 @@ def renderizar_mapa(df: pd.DataFrame) -> pd.Series | None:
         returned_objects=["last_object_clicked"],
     )
 
-    # Detectar clic y buscar la visita más cercana
+    # Detectar solo clics NUEVOS comparando con el último clic guardado
     clic = resultado.get("last_object_clicked") if resultado else None
+
     if clic and clic.get("lat") is not None:
-        lat_c = clic["lat"]
-        lon_c = clic["lng"]
+        lat_c = round(clic["lat"], 5)
+        lon_c = round(clic["lng"], 5)
+        clic_key = (lat_c, lon_c)
 
-        # Calcular distancia euclidiana a cada visita y retornar la más cercana
-        df_tmp = df.copy()
-        df_tmp["_dist"] = (
-            (df_tmp["latitud"] - lat_c) ** 2 +
-            (df_tmp["longitud"] - lon_c) ** 2
-        ) ** 0.5
+        # Recuperar el último clic registrado
+        ultimo = st.session_state.get("_ultimo_clic_mapa")
+        ultimo_key = (
+            round(ultimo["lat"], 5),
+            round(ultimo["lng"], 5),
+        ) if ultimo else None
 
-        # Solo considerar clics dentro de un radio razonable (< 2 grados)
-        cercano = df_tmp[df_tmp["_dist"] < 2.0]
-        if not cercano.empty:
-            return cercano.loc[cercano["_dist"].idxmin()].drop("_dist")
+        # Solo procesar si las coordenadas son distintas al clic anterior
+        if clic_key != ultimo_key:
+            st.session_state["_ultimo_clic_mapa"] = clic
+
+            df_tmp = df.copy()
+            df_tmp["_dist"] = (
+                (df_tmp["latitud"] - lat_c) ** 2 +
+                (df_tmp["longitud"] - lon_c) ** 2
+            ) ** 0.5
+
+            cercano = df_tmp[df_tmp["_dist"] < 2.0]
+            if not cercano.empty:
+                return cercano.loc[cercano["_dist"].idxmin()].drop("_dist")
 
     return None
