@@ -1,135 +1,141 @@
 """
-mapa.py — Módulo de mapa interactivo geoespacial
-Renderiza el mapamundi con marcadores por visita y línea de trayectoria
-Usa st.plotly_chart con on_select para captura de clics (compatible con Streamlit >= 1.38)
+mapa.py — Mapa interactivo con vista satélite tipo Google Earth
+Usa Scattermapbox con tiles ESRI World Imagery (gratuito, sin API key)
+Captura clics con st.plotly_chart on_select nativo de Streamlit >= 1.38
 """
 
 import pandas as pd
-import plotly.express as px
 import plotly.graph_objects as go
 import streamlit as st
 
-# Paleta fija de colores para cada tipo de actividad (máx. 6)
+# Paleta fija de colores por tipo de actividad
 COLORES_ACTIVIDAD = {
-    "Firma de Convenio":        "#00C9A7",
-    "Conferencia Internacional": "#845EC2",
-    "Visita Técnica":           "#FFC75F",
-    "Reunión Bilateral":        "#F9F871",
-    "Foro / Cumbre":            "#FF6F91",
+    "Firma de Convenio":        "#00E5CC",
+    "Conferencia Internacional": "#C77DFF",
+    "Visita Técnica":           "#FFD166",
+    "Reunión Bilateral":        "#FFEF5E",
+    "Foro / Cumbre":            "#FF6B9D",
     "Visita Oficial":           "#4FC3F7",
 }
+
+# Tiles ESRI World Imagery — satélite gratuito sin token
+TILE_SATELITE = (
+    "https://server.arcgisonline.com/ArcGIS/rest/"
+    "services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
+)
+
+# Tiles ESRI etiquetas de países encima del satélite
+TILE_LABELS = (
+    "https://services.arcgisonline.com/ArcGIS/rest/"
+    "services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}"
+)
 
 
 def construir_mapa(df: pd.DataFrame) -> go.Figure:
     """
-    Construye la figura de Plotly con marcadores y línea de trayectoria.
+    Construye la figura Scattermapbox sobre fondo satélite ESRI.
 
     Parámetros:
-        df (pd.DataFrame): DataFrame filtrado con las visitas a graficar.
+        df (pd.DataFrame): DataFrame filtrado con las visitas.
 
     Retorna:
         go.Figure: Figura completa lista para renderizar.
     """
-    df = df.copy()
-
-    # --- Capa de marcadores usando go.Figure directamente ---
-    # (evita problemas de agrupación de px.scatter_geo con on_select)
     fig = go.Figure()
 
-    # Agregar un trace por cada visita para identificar el índice exacto al hacer clic
+    # --- Un trace por visita para identificar el clic exacto ---
     for _, fila in df.iterrows():
-        color = COLORES_ACTIVIDAD.get(fila["tipo_actividad"], "#AAAAAA")
+        color = COLORES_ACTIVIDAD.get(fila["tipo_actividad"], "#FFFFFF")
         fig.add_trace(
-            go.Scattergeo(
+            go.Scattermapbox(
                 lat=[fila["latitud"]],
                 lon=[fila["longitud"]],
                 mode="markers",
                 marker=dict(
-                    size=max(10, fila["duracion_dias"] * 3),
+                    size=max(14, int(fila["duracion_dias"]) * 4),
                     color=color,
-                    line=dict(width=1, color="white"),
-                    opacity=0.9,
+                    opacity=0.92,
                 ),
-                name=fila["tipo_actividad"],
                 text=fila["pais"],
                 customdata=[[fila["id"]]],
                 hovertemplate=(
-                    f"<b>{fila['pais']}</b><br>"
-                    f"Ciudad: {fila['ciudad']}<br>"
-                    f"Fecha: {fila['fecha']}<br>"
-                    f"Tipo: {fila['tipo_actividad']}<br>"
-                    f"Contraparte: {fila['contraparte']}<br>"
-                    f"Duración: {fila['duracion_dias']} días"
+                    f"<b>🌍 {fila['pais']} — {fila['ciudad']}</b><br>"
+                    f"📅 {fila['fecha']}<br>"
+                    f"🏷️ {fila['tipo_actividad']}<br>"
+                    f"🤝 {fila['contraparte']}<br>"
+                    f"⏱️ {fila['duracion_dias']} días"
                     "<extra></extra>"
                 ),
                 showlegend=False,
             )
         )
 
-    # --- Leyenda manual con un trace por tipo (sin duplicar marcadores) ---
+    # --- Leyenda visual por tipo (traces vacíos) ---
     tipos_vistos = set()
     for _, fila in df.iterrows():
         tipo = fila["tipo_actividad"]
         if tipo not in tipos_vistos:
             tipos_vistos.add(tipo)
-            color = COLORES_ACTIVIDAD.get(tipo, "#AAAAAA")
             fig.add_trace(
-                go.Scattergeo(
-                    lat=[None],
-                    lon=[None],
+                go.Scattermapbox(
+                    lat=[None], lon=[None],
                     mode="markers",
-                    marker=dict(size=10, color=color),
+                    marker=dict(size=10, color=COLORES_ACTIVIDAD.get(tipo, "#FFF")),
                     name=tipo,
                     showlegend=True,
                 )
             )
 
     # --- Línea de trayectoria cronológica ---
-    df_ordenado = df.sort_values("fecha")
+    df_ord = df.sort_values("fecha")
     fig.add_trace(
-        go.Scattergeo(
-            lat=df_ordenado["latitud"].tolist(),
-            lon=df_ordenado["longitud"].tolist(),
+        go.Scattermapbox(
+            lat=df_ord["latitud"].tolist(),
+            lon=df_ord["longitud"].tolist(),
             mode="lines",
-            line=dict(width=1.5, color="white", dash="dot"),
-            opacity=0.3,
+            line=dict(width=2, color="white"),
+            opacity=0.35,
             showlegend=False,
             hoverinfo="skip",
-            name="Trayectoria",
         )
     )
 
-    # --- Layout ---
+    # --- Layout con fondo satélite ESRI + capa de etiquetas ---
     fig.update_layout(
-        title=dict(
-            text="Mapa de Visitas Oficiales — Versión Prueba",
-            font=dict(color="white", size=16),
+        height=560,
+        margin=dict(l=0, r=0, t=0, b=0),
+        mapbox=dict(
+            style="white-bg",
+            zoom=1.4,
+            center=dict(lat=25, lon=10),
+            layers=[
+                # Capa 1: Imágenes satélite
+                dict(
+                    below="traces",
+                    sourcetype="raster",
+                    sourceattribution="ESRI World Imagery",
+                    source=[TILE_SATELITE],
+                ),
+                # Capa 2: Nombres de países y fronteras encima del satélite
+                dict(
+                    below="",
+                    sourcetype="raster",
+                    sourceattribution="ESRI Reference",
+                    source=[TILE_LABELS],
+                    opacity=0.7,
+                ),
+            ],
         ),
-        height=550,
-        margin=dict(l=0, r=0, t=40, b=0),
         legend=dict(
-            title=dict(text="Tipo de Actividad", font=dict(color="white")),
-            bgcolor="rgba(0,0,0,0.5)",
-            bordercolor="rgba(255,255,255,0.2)",
+            title=dict(text="Tipo de Actividad", font=dict(color="white", size=12)),
+            bgcolor="rgba(0,0,0,0.6)",
+            bordercolor="rgba(255,255,255,0.25)",
             borderwidth=1,
-            font=dict(color="white"),
+            font=dict(color="white", size=11),
+            x=0.01,
+            y=0.99,
         ),
-        geo=dict(
-            projection_type="natural earth",
-            showland=True,
-            landcolor="rgb(40, 40, 60)",
-            showocean=True,
-            oceancolor="rgb(20, 30, 50)",
-            showcountries=True,
-            countrycolor="rgba(255,255,255,0.15)",
-            showframe=False,
-            showcoastlines=True,
-            coastlinecolor="rgba(255,255,255,0.2)",
-            bgcolor="rgb(17, 17, 34)",
-        ),
-        paper_bgcolor="rgb(17, 17, 34)",
-        plot_bgcolor="rgb(17, 17, 34)",
-        template="plotly_dark",
+        paper_bgcolor="black",
     )
 
     return fig
@@ -137,14 +143,13 @@ def construir_mapa(df: pd.DataFrame) -> go.Figure:
 
 def renderizar_mapa(df: pd.DataFrame) -> pd.Series | None:
     """
-    Renderiza el mapa y captura clics usando st.plotly_chart con on_select.
-    Compatible con Streamlit >= 1.38 sin dependencias externas.
+    Renderiza el mapa satélite y captura el clic sobre un marcador.
 
     Parámetros:
         df (pd.DataFrame): DataFrame filtrado con las visitas.
 
     Retorna:
-        pd.Series | None: Fila del DataFrame del punto clickeado, o None.
+        pd.Series | None: Fila del DataFrame clickeada, o None.
     """
     if df.empty:
         st.warning("No hay visitas para mostrar con los filtros seleccionados.")
@@ -152,7 +157,6 @@ def renderizar_mapa(df: pd.DataFrame) -> pd.Series | None:
 
     fig = construir_mapa(df)
 
-    # Renderizar con soporte de selección nativo de Streamlit
     evento = st.plotly_chart(
         fig,
         use_container_width=True,
@@ -160,15 +164,12 @@ def renderizar_mapa(df: pd.DataFrame) -> pd.Series | None:
         key="mapa_visitas",
     )
 
-    # Procesar el punto seleccionado
+    # Procesar clic — los primeros len(df) traces son los marcadores individuales
     if evento and evento.selection and evento.selection.points:
         punto = evento.selection.points[0]
         curva_idx = punto.get("curve_number", None)
-
-        # Los primeros len(df) traces son los marcadores individuales (uno por visita)
         if curva_idx is not None and curva_idx < len(df):
             df_reset = df.reset_index(drop=True)
-            fila = df_reset.iloc[curva_idx]
-            return fila
+            return df_reset.iloc[curva_idx]
 
     return None
