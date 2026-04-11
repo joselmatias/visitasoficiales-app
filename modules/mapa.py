@@ -202,9 +202,13 @@ def construir_mapa(df: pd.DataFrame) -> folium.Map:
         force_separate_button=True,
     ).add_to(mapa)
 
-    # Minimapa de referencia
+    # Minimapa de referencia (usa tile con atribución nativa para evitar error)
+    minimap_tile = folium.TileLayer(
+        tiles=TILE_SATELITE,
+        attr="Esri World Imagery",
+    )
     MiniMap(
-        tile_layer=TILE_SATELITE,
+        tile_layer=minimap_tile,
         position="bottomright",
         width=160,
         height=120,
