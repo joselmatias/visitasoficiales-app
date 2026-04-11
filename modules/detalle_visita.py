@@ -25,24 +25,45 @@ MESES_ES = {
     9: "septiembre", 10: "octubre", 11: "noviembre", 12: "diciembre",
 }
 
+# Extensiones de imagen soportadas (orden de preferencia)
+EXTENSIONES_IMAGEN = [".jpg", ".jpeg", ".jfif", ".png", ".webp"]
+
+
+def buscar_foto(ruta_base: str) -> str | None:
+    """
+    Busca el archivo de foto probando múltiples extensiones si la ruta exacta
+    no existe. Esto resuelve diferencias entre .jpg, .jfif, .jpeg, etc.
+
+    Parámetros:
+        ruta_base (str): Ruta del CSV (puede tener cualquier extensión).
+
+    Retorna:
+        str | None: Ruta válida al archivo encontrado, o None si no existe.
+    """
+    # Intentar primero con la ruta exacta del CSV
+    if os.path.exists(ruta_base):
+        return ruta_base
+
+    # Probar todas las extensiones sobre el nombre base sin extensión
+    nombre_sin_ext = os.path.splitext(ruta_base)[0]
+    for ext in EXTENSIONES_IMAGEN:
+        ruta_candidata = nombre_sin_ext + ext
+        if os.path.exists(ruta_candidata):
+            return ruta_candidata
+
+    return None
+
 
 def _formatear_fecha(fecha_str: str) -> str:
     """
     Convierte una fecha en formato YYYY-MM-DD al formato 'DD de Mes de AAAA' en español.
-
-    Parámetros:
-        fecha_str (str): Fecha en formato ISO (YYYY-MM-DD).
-
-    Retorna:
-        str: Fecha formateada en español.
     """
     try:
         if isinstance(fecha_str, str):
-            fecha = datetime.strptime(fecha_str, "%Y-%m-%d")
+            fecha = datetime.strptime(fecha_str[:10], "%Y-%m-%d")
         else:
             fecha = pd.Timestamp(fecha_str).to_pydatetime()
-        mes_nombre = MESES_ES[fecha.month]
-        return f"{fecha.day} de {mes_nombre} de {fecha.year}"
+        return f"{fecha.day} de {MESES_ES[fecha.month]} de {fecha.year}"
     except (ValueError, KeyError):
         return str(fecha_str)
 
@@ -50,12 +71,6 @@ def _formatear_fecha(fecha_str: str) -> str:
 def _badge_tipo(tipo: str) -> str:
     """
     Genera HTML de un badge con color para el tipo de actividad.
-
-    Parámetros:
-        tipo (str): Nombre del tipo de actividad.
-
-    Retorna:
-        str: Cadena HTML con el badge estilizado.
     """
     color = COLORES_BADGE.get(tipo, "#AAAAAA")
     return (
@@ -71,10 +86,32 @@ def _badge_tipo(tipo: str) -> str:
     )
 
 
+def mostrar_foto(fila: pd.Series, use_container_width: bool = True) -> None:
+    """
+    Renderiza únicamente la foto de la autoridad.
+    Puede usarse tanto en el sidebar como en el área principal del mapa.
+
+    Parámetros:
+        fila (pd.Series): Fila del DataFrame con los datos de la visita.
+        use_container_width (bool): Si la imagen ocupa el ancho del contenedor.
+    """
+    foto_ruta = str(fila.get("foto_path", ""))
+    ruta_encontrada = buscar_foto(foto_ruta)
+
+    if ruta_encontrada:
+        st.image(
+            ruta_encontrada,
+            use_container_width=use_container_width,
+            caption=f"Máxima Autoridad — {fila['pais']}",
+        )
+    else:
+        st.warning("Foto no disponible para esta visita")
+
+
 def mostrar_detalle(fila: pd.Series) -> None:
     """
-    Renderiza en el sidebar de Streamlit el detalle completo de una visita,
-    incluyendo foto de la autoridad, encabezado, métricas y descripción.
+    Renderiza en el sidebar el detalle completo de una visita:
+    foto, encabezado, métricas, descripción y botón de cierre.
 
     Parámetros:
         fila (pd.Series): Fila del DataFrame con los datos de la visita.
@@ -82,33 +119,14 @@ def mostrar_detalle(fila: pd.Series) -> None:
 
     # ── SECCIÓN 1: Foto de la autoridad ──────────────────────────────────────
     st.markdown("### Foto de la Autoridad")
-
-    foto_ruta = str(fila.get("foto_path", ""))
-
-    try:
-        if not foto_ruta:
-            raise FileNotFoundError("Ruta vacía")
-
-        if not os.path.exists(foto_ruta):
-            raise FileNotFoundError(f"No se encontró: {foto_ruta}")
-
-        st.image(
-            foto_ruta,
-            use_container_width=True,
-            caption=f"Máxima Autoridad — {fila['pais']}",
-        )
-
-    except FileNotFoundError:
-        st.warning("Foto no disponible para esta visita")
-
+    mostrar_foto(fila, use_container_width=True)
     st.markdown("---")
 
     # ── SECCIÓN 2: Encabezado de la visita ───────────────────────────────────
     st.markdown(f"### {fila['pais']} — {fila['ciudad']}")
-
     tipo = str(fila.get("tipo_actividad", ""))
     st.markdown(_badge_tipo(tipo), unsafe_allow_html=True)
-    st.markdown("")  # Espaciado visual
+    st.markdown("")
 
     # ── SECCIÓN 3: Datos de la visita ─────────────────────────────────────────
     st.metric(
@@ -118,9 +136,7 @@ def mostrar_detalle(fila: pd.Series) -> None:
 
     fecha_formateada = _formatear_fecha(str(fila.get("fecha", "")))
     st.caption(f"Fecha: {fecha_formateada}")
-
     st.write(fila.get("descripcion", "Sin descripción disponible."))
-
     st.info(f"**Contraparte:** {fila.get('contraparte', 'No especificada')}")
 
     # ── SECCIÓN 4: Separador y botón de cierre ────────────────────────────────

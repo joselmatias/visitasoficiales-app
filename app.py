@@ -7,10 +7,9 @@ import os
 import pandas as pd
 import streamlit as st
 
-# Importar módulos del proyecto
 from modules.filtros import renderizar_filtros
 from modules.mapa import renderizar_mapa
-from modules.detalle_visita import mostrar_detalle
+from modules.detalle_visita import mostrar_detalle, mostrar_foto, _badge_tipo
 
 # ── Configuración de página ───────────────────────────────────────────────────
 st.set_page_config(
@@ -21,13 +20,7 @@ st.set_page_config(
 
 
 def cargar_datos() -> pd.DataFrame:
-    """
-    Carga el archivo CSV de visitas desde la ruta relativa al proyecto.
-
-    Retorna:
-        pd.DataFrame: DataFrame con todas las visitas cargadas.
-    """
-    # Ruta relativa al CSV desde el directorio donde se ejecuta la app
+    """Carga el CSV de visitas desde la ruta relativa al proyecto."""
     ruta_csv = os.path.join(os.path.dirname(__file__), "data", "visitas.csv")
     df = pd.read_csv(ruta_csv, encoding="utf-8")
     df["fecha"] = pd.to_datetime(df["fecha"])
@@ -35,29 +28,19 @@ def cargar_datos() -> pd.DataFrame:
 
 
 def calcular_metricas(df: pd.DataFrame) -> dict:
-    """
-    Calcula las 4 métricas principales a mostrar en la cabecera.
-
-    Parámetros:
-        df (pd.DataFrame): DataFrame con las visitas (puede ser el filtrado).
-
-    Retorna:
-        dict: Diccionario con los valores de cada métrica.
-    """
-    total_visitas = len(df)
-    paises_visitados = df["pais"].nunique()
-    total_dias = int(df["duracion_dias"].sum())
-
-    if not df.empty:
-        tipo_frecuente = df["tipo_actividad"].value_counts().idxmax()
-    else:
-        tipo_frecuente = "—"
-
+    """Calcula las 4 métricas principales según el DataFrame filtrado."""
+    if df.empty:
+        return {
+            "total_visitas": 0,
+            "paises_visitados": 0,
+            "total_dias": 0,
+            "tipo_frecuente": "—",
+        }
     return {
-        "total_visitas": total_visitas,
-        "paises_visitados": paises_visitados,
-        "total_dias": total_dias,
-        "tipo_frecuente": tipo_frecuente,
+        "total_visitas": len(df),
+        "paises_visitados": df["pais"].nunique(),
+        "total_dias": int(df["duracion_dias"].sum()),
+        "tipo_frecuente": df["tipo_actividad"].value_counts().idxmax(),
     }
 
 
@@ -78,53 +61,55 @@ def main():
         "Versión de prueba · 3 países · 9 visitas"
     )
 
-    # ── Filtros en sidebar (retorna DataFrame filtrado) ───────────────────────
+    # ── Filtros en sidebar ────────────────────────────────────────────────────
     df_filtrado = renderizar_filtros(df_completo)
 
-    # ── Fila de métricas (basadas en el DataFrame FILTRADO) ───────────────────
+    # ── Fila de métricas ──────────────────────────────────────────────────────
     metricas = calcular_metricas(df_filtrado)
-
     col1, col2, col3, col4 = st.columns(4)
     with col1:
-        st.metric(
-            label="Total de Visitas",
-            value=metricas["total_visitas"],
-            delta=None,
-        )
+        st.metric("Total de Visitas", metricas["total_visitas"])
     with col2:
-        st.metric(
-            label="Países Visitados",
-            value=metricas["paises_visitados"],
-        )
+        st.metric("Países Visitados", metricas["paises_visitados"])
     with col3:
-        st.metric(
-            label="Total Días en Exterior",
-            value=f"{metricas['total_dias']} días",
-        )
+        st.metric("Total Días en Exterior", f"{metricas['total_dias']} días")
     with col4:
-        st.metric(
-            label="Actividad más Frecuente",
-            value=metricas["tipo_frecuente"],
-        )
+        st.metric("Actividad más Frecuente", metricas["tipo_frecuente"])
 
     st.divider()
 
-    # ── Mapa interactivo ──────────────────────────────────────────────────────
-    fila_clickeada = renderizar_mapa(df_filtrado)
+    # ── Layout principal: mapa + foto al seleccionar ──────────────────────────
+    visita_activa = st.session_state.get("visita_seleccionada")
+
+    if visita_activa is not None:
+        # Con visita seleccionada: mapa a la izquierda, foto a la derecha
+        col_mapa, col_foto = st.columns([2, 1])
+
+        with col_mapa:
+            fila_clickeada = renderizar_mapa(df_filtrado)
+
+        with col_foto:
+            st.markdown(f"### {visita_activa['pais']} — {visita_activa['ciudad']}")
+            tipo = str(visita_activa.get("tipo_actividad", ""))
+            st.markdown(_badge_tipo(tipo), unsafe_allow_html=True)
+            st.markdown("")
+            mostrar_foto(visita_activa, use_container_width=True)
+
+    else:
+        # Sin visita seleccionada: mapa ocupa todo el ancho
+        fila_clickeada = renderizar_mapa(df_filtrado)
 
     # Actualizar visita seleccionada si se hizo clic en el mapa
     if fila_clickeada is not None:
         st.session_state["visita_seleccionada"] = fila_clickeada
+        st.rerun()
 
-    # ── Panel de detalle en el sidebar ────────────────────────────────────────
-    visita_activa = st.session_state.get("visita_seleccionada")
+    # ── Panel de detalle completo en el sidebar ───────────────────────────────
     if visita_activa is not None:
         with st.sidebar:
             st.markdown("---")
             mostrar_detalle(visita_activa)
-
-    # ── Nota informativa en el sidebar si no hay visita seleccionada ──────────
-    elif st.session_state.get("visita_seleccionada") is None:
+    else:
         with st.sidebar:
             st.markdown("---")
             st.info(
