@@ -1,23 +1,22 @@
 """
 mapa.py — Módulo de mapa interactivo geoespacial
 Renderiza el mapamundi con marcadores por visita y línea de trayectoria
-Usa plotly.express y streamlit-plotly-events para captura de clics
+Usa st.plotly_chart con on_select para captura de clics (compatible con Streamlit >= 1.38)
 """
 
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 import streamlit as st
-from streamlit_plotly_events import plotly_events
 
 # Paleta fija de colores para cada tipo de actividad (máx. 6)
 COLORES_ACTIVIDAD = {
-    "Firma de Convenio":       "#00C9A7",
+    "Firma de Convenio":        "#00C9A7",
     "Conferencia Internacional": "#845EC2",
-    "Visita Técnica":          "#FFC75F",
-    "Reunión Bilateral":       "#F9F871",
-    "Foro / Cumbre":           "#FF6F91",
-    "Visita Oficial":          "#4FC3F7",
+    "Visita Técnica":           "#FFC75F",
+    "Reunión Bilateral":        "#F9F871",
+    "Foro / Cumbre":            "#FF6F91",
+    "Visita Oficial":           "#4FC3F7",
 }
 
 
@@ -31,48 +30,68 @@ def construir_mapa(df: pd.DataFrame) -> go.Figure:
     Retorna:
         go.Figure: Figura completa lista para renderizar.
     """
-
-    # Asignar color según tipo de actividad
     df = df.copy()
-    df["color"] = df["tipo_actividad"].map(COLORES_ACTIVIDAD).fillna("#AAAAAA")
 
-    # --- Capa de marcadores (scatter_geo) ---
-    fig = px.scatter_geo(
-        df,
-        lat="latitud",
-        lon="longitud",
-        color="tipo_actividad",
-        color_discrete_map=COLORES_ACTIVIDAD,
-        size="duracion_dias",
-        size_max=20,
-        projection="natural earth",
-        template="plotly_dark",
-        hover_name="pais",
-        hover_data={
-            "ciudad": True,
-            "fecha": True,
-            "tipo_actividad": True,
-            "contraparte": True,
-            "latitud": False,
-            "longitud": False,
-            "duracion_dias": False,
-        },
-        custom_data=["id"],   # Guardamos el id para identificar la fila al hacer clic
-        title="Mapa de Visitas Oficiales — Versión Prueba",
-    )
+    # --- Capa de marcadores usando go.Figure directamente ---
+    # (evita problemas de agrupación de px.scatter_geo con on_select)
+    fig = go.Figure()
 
-    # --- Capa de línea de trayectoria cronológica ---
+    # Agregar un trace por cada visita para identificar el índice exacto al hacer clic
+    for _, fila in df.iterrows():
+        color = COLORES_ACTIVIDAD.get(fila["tipo_actividad"], "#AAAAAA")
+        fig.add_trace(
+            go.Scattergeo(
+                lat=[fila["latitud"]],
+                lon=[fila["longitud"]],
+                mode="markers",
+                marker=dict(
+                    size=max(10, fila["duracion_dias"] * 3),
+                    color=color,
+                    line=dict(width=1, color="white"),
+                    opacity=0.9,
+                ),
+                name=fila["tipo_actividad"],
+                text=fila["pais"],
+                customdata=[[fila["id"]]],
+                hovertemplate=(
+                    f"<b>{fila['pais']}</b><br>"
+                    f"Ciudad: {fila['ciudad']}<br>"
+                    f"Fecha: {fila['fecha']}<br>"
+                    f"Tipo: {fila['tipo_actividad']}<br>"
+                    f"Contraparte: {fila['contraparte']}<br>"
+                    f"Duración: {fila['duracion_dias']} días"
+                    "<extra></extra>"
+                ),
+                showlegend=False,
+            )
+        )
+
+    # --- Leyenda manual con un trace por tipo (sin duplicar marcadores) ---
+    tipos_vistos = set()
+    for _, fila in df.iterrows():
+        tipo = fila["tipo_actividad"]
+        if tipo not in tipos_vistos:
+            tipos_vistos.add(tipo)
+            color = COLORES_ACTIVIDAD.get(tipo, "#AAAAAA")
+            fig.add_trace(
+                go.Scattergeo(
+                    lat=[None],
+                    lon=[None],
+                    mode="markers",
+                    marker=dict(size=10, color=color),
+                    name=tipo,
+                    showlegend=True,
+                )
+            )
+
+    # --- Línea de trayectoria cronológica ---
     df_ordenado = df.sort_values("fecha")
     fig.add_trace(
         go.Scattergeo(
             lat=df_ordenado["latitud"].tolist(),
             lon=df_ordenado["longitud"].tolist(),
             mode="lines",
-            line=dict(
-                width=1.5,
-                color="white",
-                dash="dot",
-            ),
+            line=dict(width=1.5, color="white", dash="dot"),
             opacity=0.3,
             showlegend=False,
             hoverinfo="skip",
@@ -80,18 +99,23 @@ def construir_mapa(df: pd.DataFrame) -> go.Figure:
         )
     )
 
-    # --- Ajustes de layout ---
+    # --- Layout ---
     fig.update_layout(
+        title=dict(
+            text="Mapa de Visitas Oficiales — Versión Prueba",
+            font=dict(color="white", size=16),
+        ),
         height=550,
         margin=dict(l=0, r=0, t=40, b=0),
         legend=dict(
-            title="Tipo de Actividad",
+            title=dict(text="Tipo de Actividad", font=dict(color="white")),
             bgcolor="rgba(0,0,0,0.5)",
             bordercolor="rgba(255,255,255,0.2)",
             borderwidth=1,
             font=dict(color="white"),
         ),
         geo=dict(
+            projection_type="natural earth",
             showland=True,
             landcolor="rgb(40, 40, 60)",
             showocean=True,
@@ -105,7 +129,7 @@ def construir_mapa(df: pd.DataFrame) -> go.Figure:
         ),
         paper_bgcolor="rgb(17, 17, 34)",
         plot_bgcolor="rgb(17, 17, 34)",
-        title_font=dict(color="white", size=16),
+        template="plotly_dark",
     )
 
     return fig
@@ -113,14 +137,14 @@ def construir_mapa(df: pd.DataFrame) -> go.Figure:
 
 def renderizar_mapa(df: pd.DataFrame) -> pd.Series | None:
     """
-    Renderiza el mapa en la interfaz de Streamlit y captura el evento de clic.
+    Renderiza el mapa y captura clics usando st.plotly_chart con on_select.
+    Compatible con Streamlit >= 1.38 sin dependencias externas.
 
     Parámetros:
         df (pd.DataFrame): DataFrame filtrado con las visitas.
 
     Retorna:
-        pd.Series | None: La fila del DataFrame correspondiente al punto
-                          clickeado, o None si no hubo clic.
+        pd.Series | None: Fila del DataFrame del punto clickeado, o None.
     """
     if df.empty:
         st.warning("No hay visitas para mostrar con los filtros seleccionados.")
@@ -128,36 +152,23 @@ def renderizar_mapa(df: pd.DataFrame) -> pd.Series | None:
 
     fig = construir_mapa(df)
 
-    # Capturar evento de clic usando streamlit-plotly-events
-    puntos_seleccionados = plotly_events(
+    # Renderizar con soporte de selección nativo de Streamlit
+    evento = st.plotly_chart(
         fig,
-        click_event=True,
-        hover_event=False,
-        select_event=False,
-        override_height=550,
+        use_container_width=True,
+        on_select="rerun",
         key="mapa_visitas",
     )
 
-    # Procesar el clic si existe
-    if puntos_seleccionados:
-        punto = puntos_seleccionados[0]
-        punto_idx = punto.get("pointIndex", None)
-        curva_idx = punto.get("curveNumber", 0)
+    # Procesar el punto seleccionado
+    if evento and evento.selection and evento.selection.points:
+        punto = evento.selection.points[0]
+        curva_idx = punto.get("curve_number", None)
 
-        # Solo procesar clics en la capa de marcadores (curveNumber 0..n-1 de scatter)
-        # La línea de trayectoria es la última traza, la ignoramos
-        if punto_idx is not None and curva_idx < len(df["tipo_actividad"].unique()):
-            try:
-                # Reconstruir el subset de puntos en el mismo orden que plotly los grafica
-                # plotly agrupa por color (tipo_actividad), necesitamos mapear correctamente
-                tipo_unico = df["tipo_actividad"].unique()
-                if curva_idx < len(tipo_unico):
-                    tipo_seleccionado = tipo_unico[curva_idx]
-                    subset = df[df["tipo_actividad"] == tipo_seleccionado].reset_index(drop=True)
-                    if punto_idx < len(subset):
-                        fila = subset.iloc[punto_idx]
-                        return fila
-            except (IndexError, KeyError):
-                pass
+        # Los primeros len(df) traces son los marcadores individuales (uno por visita)
+        if curva_idx is not None and curva_idx < len(df):
+            df_reset = df.reset_index(drop=True)
+            fila = df_reset.iloc[curva_idx]
+            return fila
 
     return None
