@@ -96,10 +96,11 @@ def renderizar_filtros(df: pd.DataFrame) -> pd.DataFrame:
     # ── Botón "Ver todos" para resetear filtros ───────────────────────────────
     st.sidebar.markdown("---")
     if st.sidebar.button("Restablecer", use_container_width=True, key="btn_ver_todos"):
-        st.session_state["filtro_pais"] = "Todos"
-        st.session_state["filtro_tipos"] = TIPOS_ACTIVIDAD.copy()
-        st.session_state["filtro_fecha_inicio"] = date(2024, 1, 1)
-        st.session_state["filtro_fecha_fin"] = date(2024, 12, 31)
+        # Eliminar las claves para que los widgets vuelvan a su valor por defecto.
+        # No se puede asignar session_state[key] directamente sobre claves de widget activas.
+        for k in ["filtro_pais", "filtro_tipos", "filtro_fecha_inicio", "filtro_fecha_fin"]:
+            if k in st.session_state:
+                del st.session_state[k]
         st.rerun()
 
     # ── Aplicar filtros al DataFrame ──────────────────────────────────────────

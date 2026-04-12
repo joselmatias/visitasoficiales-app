@@ -45,6 +45,21 @@ def _offsets_circulares(n: int, radio: float = 0.8) -> list[tuple]:
     return [(radio * math.sin(a), radio * math.cos(a)) for a in angulos]
 
 
+def _posiciones_marcadores(df: pd.DataFrame) -> dict:
+    """
+    Devuelve un dict {idx_fila: (lat_marcador, lon_marcador)} con las
+    coordenadas reales de cada marcador en el mapa (incluye offsets circulares).
+    Usa los mismos parámetros que construir_mapa para que coincidan exactamente.
+    """
+    posiciones = {}
+    for (lat_base, lon_base), grupo in df.groupby(["latitud", "longitud"]):
+        n = len(grupo)
+        offsets = _offsets_circulares(n, radio=0.5)
+        for (idx, _), (dlat, dlon) in zip(grupo.iterrows(), offsets):
+            posiciones[idx] = (lat_base + dlat, lon_base + dlon)
+    return posiciones
+
+
 def construir_mapa(df: pd.DataFrame) -> folium.Map:
     """
     Construye el mapa Folium con fondo satélite, marcadores, trayectoria
@@ -120,7 +135,7 @@ def construir_mapa(df: pd.DataFrame) -> folium.Map:
             lon_m = lon_base + dlon
             radio_px = max(12, int(fila["duracion_dias"]) * 3)
 
-            # Tooltip flotante al pasar el cursor
+            # Tooltip flotante — incluye número de visita, país, ciudad y detalle
             tooltip_html = f"""
             <div style="
                 font-family: Arial, sans-serif;
@@ -132,7 +147,7 @@ def construir_mapa(df: pd.DataFrame) -> folium.Map:
                 border-left: 4px solid {color};
                 min-width: 220px;
             ">
-                <b style="font-size:15px;">🌍 {fila['pais']} — {fila['ciudad']}</b><br>
+                <b style="font-size:15px;">#{idx_local + 1} &nbsp; 🌍 {fila['pais']} — {fila['ciudad']}</b><br>
                 <span style="color:{color};">■</span>
                 <b>{fila['tipo_actividad']}</b><br>
                 📅 {str(fila['fecha'])[:10]}<br>
@@ -141,7 +156,7 @@ def construir_mapa(df: pd.DataFrame) -> folium.Map:
             </div>
             """
 
-            # Marcador circular estilizado
+            # Marcador circular — ocupa toda el área clicable sin superposición
             folium.CircleMarker(
                 location=[lat_m, lon_m],
                 radius=radio_px,
@@ -150,14 +165,10 @@ def construir_mapa(df: pd.DataFrame) -> folium.Map:
                 fill=True,
                 fill_color=color,
                 fill_opacity=0.88,
-                tooltip=folium.Tooltip(
-                    tooltip_html,
-                    sticky=True,
-                ),
+                tooltip=folium.Tooltip(tooltip_html, sticky=True),
             ).add_to(mapa)
 
-            # Número de visita en el centro del marcador
-            # pointer-events: none → los clics pasan al CircleMarker de abajo
+            # Número encima del círculo usando DivIcon overlay (no interactivo)
             folium.Marker(
                 location=[lat_m, lon_m],
                 icon=folium.DivIcon(
@@ -173,11 +184,13 @@ def construir_mapa(df: pd.DataFrame) -> folium.Map:
                         margin-top: -{radio_px}px;
                         margin-left: -{radio_px}px;
                         pointer-events: none;
+                        user-select: none;
                     ">{idx_local + 1}</div>
                     """,
                     icon_size=(radio_px * 2, radio_px * 2),
                     icon_anchor=(radio_px, radio_px),
                 ),
+                interactive=False,
             ).add_to(mapa)
 
     # ── Plugins interactivos ──────────────────────────────────────────────────
@@ -259,14 +272,22 @@ def renderizar_mapa(df: pd.DataFrame) -> pd.Series | None:
         if clic_key != ultimo_key:
             st.session_state["_ultimo_clic_mapa"] = clic
 
+            # Usar posiciones reales de los marcadores (con offsets circulares)
+            # para identificar cuál fue clickeado. Sin esto, todos los marcadores
+            # de una misma ciudad comparten la misma lat/lon base y solo responde uno.
+            posiciones = _posiciones_marcadores(df)
             df_tmp = df.copy()
+            df_tmp["_lat_m"] = df_tmp.index.map(lambda i: posiciones[i][0])
+            df_tmp["_lon_m"] = df_tmp.index.map(lambda i: posiciones[i][1])
             df_tmp["_dist"] = (
-                (df_tmp["latitud"] - lat_c) ** 2 +
-                (df_tmp["longitud"] - lon_c) ** 2
+                (df_tmp["_lat_m"] - lat_c) ** 2 +
+                (df_tmp["_lon_m"] - lon_c) ** 2
             ) ** 0.5
 
-            cercano = df_tmp[df_tmp["_dist"] < 2.0]
+            cercano = df_tmp[df_tmp["_dist"] < 1.0]
             if not cercano.empty:
-                return cercano.loc[cercano["_dist"].idxmin()].drop("_dist")
+                return cercano.loc[cercano["_dist"].idxmin()].drop(
+                    columns=["_lat_m", "_lon_m", "_dist"]
+                )
 
     return None
