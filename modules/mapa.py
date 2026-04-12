@@ -1,6 +1,6 @@
 """
 mapa.py — Globo 3D interactivo con Plotly (proyección ortográfica)
-Fondo oscuro + bordes de continente en blanco + marcadores de visitas
+Estilo vista satélite: océanos azul profundo + tierra en tonos naturales
 Captura clics via st.plotly_chart on_select para identificar la visita seleccionada
 """
 
@@ -21,7 +21,7 @@ COLORES_ACTIVIDAD = {
 
 def construir_globo(df: pd.DataFrame) -> go.Figure:
     """
-    Construye el globo 3D con proyección ortográfica.
+    Construye el globo 3D con proyección ortográfica estilo vista satélite.
 
     Parámetros:
         df (pd.DataFrame): DataFrame filtrado con las visitas.
@@ -54,7 +54,7 @@ def construir_globo(df: pd.DataFrame) -> go.Figure:
             size=tamanos,
             color=colores,
             line=dict(color="white", width=2),
-            opacity=0.92,
+            opacity=0.95,
         ),
         text=tooltips,
         customdata=list(range(len(df))),
@@ -62,31 +62,37 @@ def construir_globo(df: pd.DataFrame) -> go.Figure:
         showlegend=False,
     ))
 
-    # ── Layout del globo ──────────────────────────────────────────────────────
+    # ── Layout del globo — estilo vista satélite ──────────────────────────────
     fig.update_layout(
         geo=dict(
             projection_type="orthographic",
             projection_rotation=dict(lon=15, lat=20, roll=0),
-            # Tierra y océano en el mismo tono oscuro
+            # Tierra: tonos naturales verdes/marrones como vista satelital
             showland=True,
-            landcolor="#111118",
+            landcolor="#4a7a52",        # verde natural / vegetación
+            # Océano: azul profundo oceánico
             showocean=True,
-            oceancolor="#0a0a10",
-            # Solo bordes de continente (sin división por país)
-            showcountries=False,
+            oceancolor="#1a3f6f",       # azul océano profundo
+            # Bordes de país sutiles
+            showcountries=True,
+            countrycolor="rgba(255,255,255,0.30)",
+            countrywidth=0.6,
+            # Costlines con blanco para resaltar
             showcoastlines=True,
-            coastlinecolor="#ffffff",
-            coastlinewidth=1.8,
-            # Extras visuales
-            showlakes=False,
+            coastlinecolor="rgba(255,255,255,0.80)",
+            coastlinewidth=1.4,
+            # Lagos en el mismo tono del océano
+            showlakes=True,
+            lakecolor="#1a3f6f",
             showrivers=False,
             showframe=False,
             bgcolor="rgba(0,0,0,0)",
             lataxis=dict(showgrid=False),
             lonaxis=dict(showgrid=False),
         ),
-        paper_bgcolor="rgba(0,0,0,0)",
-        plot_bgcolor="rgba(0,0,0,0)",
+        # Fondo oscuro tipo espacio exterior alrededor del globo
+        paper_bgcolor="#0a0a14",
+        plot_bgcolor="#0a0a14",
         margin=dict(l=0, r=0, t=0, b=0),
         height=560,
         dragmode="zoom",
