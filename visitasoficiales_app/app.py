@@ -137,6 +137,7 @@ def main():
         except (ValueError, KeyError):
             pass
         del st.query_params["vid"]
+        st.rerun()   # ciclo limpio con session_state ya cargado
 
     # ── Sidebar: logo + filtros ───────────────────────────────────────────────
     logo = _cargar_logo()
