@@ -1,13 +1,13 @@
 """
-mapa.py — Globo 3D interactivo con Plotly (proyección ortográfica)
-Estilo vista satélite: océanos azul profundo + tierra en tonos naturales
-Animación horizontal (rotación lon) con botones ▶ / ⏸
-Captura clics via st.plotly_chart on_select para identificar la visita seleccionada
+mapa.py — Globo 3D satelital con globe.gl (Three.js via CDN, gratuito)
+Textura NASA Blue Marble + rotación horizontal automática
+Selección de visita mediante botones nativos Streamlit debajo del globo
 """
 
+import json
 import pandas as pd
-import plotly.graph_objects as go
 import streamlit as st
+import streamlit.components.v1 as components
 
 # Paleta de colores por tipo de actividad
 COLORES_ACTIVIDAD = {
@@ -19,191 +19,99 @@ COLORES_ACTIVIDAD = {
     "Visita Oficial":            "#4FC3F7",
 }
 
-# Configuración de la animación
-_LON_INICIO  = 15    # longitud inicial del centro del globo
-_PASO_GRADOS = 4     # grados por frame
-_N_ROTACIONES = 10   # número de vueltas completas antes de detenerse
-_MS_POR_FRAME = 55   # velocidad: menor = más rápido
 
+def _html_globo(puntos_json: str) -> str:
+    return f"""<!DOCTYPE html>
+<html>
+<head>
+  <style>
+    body {{ margin:0; background:#0a0a14; overflow:hidden; }}
+    #g   {{ width:100%; height:520px; }}
+  </style>
+</head>
+<body>
+  <div id="g"></div>
+  <script src="https://unpkg.com/globe.gl/dist/globe.gl.min.js"></script>
+  <script>
+    const pts = {puntos_json};
 
-def _construir_frames() -> list[go.Frame]:
-    """Genera los frames de rotación horizontal (solo lon varía, lat fija en 20°)."""
-    total = _N_ROTACIONES * (360 // _PASO_GRADOS)
-    frames = []
-    for i in range(total):
-        lon = (_LON_INICIO + i * _PASO_GRADOS) % 360
-        if lon > 180:
-            lon -= 360
-        frames.append(
-            go.Frame(
-                layout=dict(
-                    geo=dict(projection_rotation=dict(lon=lon, lat=20, roll=0))
-                ),
-                name=str(i),
-            )
-        )
-    return frames
+    const world = Globe({{ animateIn: false }})
+      .globeImageUrl(
+        'https://unpkg.com/three-globe/example/img/earth-blue-marble.jpg')
+      .bumpImageUrl(
+        'https://unpkg.com/three-globe/example/img/earth-topology.png')
+      .backgroundColor('#0a0a14')
+      .pointsData(pts)
+      .pointLat('lat')
+      .pointLng('lon')
+      .pointColor('color')
+      .pointRadius(0.55)
+      .pointAltitude(0.06)
+      .pointLabel(p =>
+        `<div style="background:rgba(0,0,0,.75);color:#fff;padding:7px 10px;
+                     border-radius:6px;font:13px/1.5 sans-serif;">
+           <b>${{p.pais}} — ${{p.ciudad}}</b><br>
+           <span style="color:${{p.color}}">■</span> ${{p.tipo}}<br>
+           📅 ${{p.fecha}} &nbsp;⏱️ ${{p.dias}} días
+         </div>`)
+      (document.getElementById('g'));
 
-
-def construir_globo(df: pd.DataFrame) -> go.Figure:
-    """
-    Construye el globo 3D con proyección ortográfica estilo vista satélite
-    y animación de rotación horizontal.
-
-    Parámetros:
-        df (pd.DataFrame): DataFrame filtrado con las visitas.
-
-    Retorna:
-        go.Figure: Figura Plotly lista para renderizar.
-    """
-    fig = go.Figure()
-
-    # ── Marcadores de visitas ─────────────────────────────────────────────────
-    colores  = [COLORES_ACTIVIDAD.get(t, "#FFFFFF") for t in df["tipo_actividad"]]
-    tamanos  = [max(16, int(d) * 4) for d in df["duracion_dias"]]
-    tooltips = [
-        (
-            f"<b>{row['pais']} — {row['ciudad']}</b><br>"
-            f"<span style='color:{COLORES_ACTIVIDAD.get(row['tipo_actividad'], '#fff')}'>"
-            f"■ {row['tipo_actividad']}</span><br>"
-            f"📅 {str(row['fecha'])[:10]}<br>"
-            f"🤝 {row['contraparte']}<br>"
-            f"⏱️ {row['duracion_dias']} días"
-        )
-        for _, row in df.iterrows()
-    ]
-
-    fig.add_trace(go.Scattergeo(
-        lat=df["latitud"].tolist(),
-        lon=df["longitud"].tolist(),
-        mode="markers",
-        marker=dict(
-            size=tamanos,
-            color=colores,
-            line=dict(color="white", width=2),
-            opacity=0.95,
-        ),
-        text=tooltips,
-        customdata=list(range(len(df))),
-        hovertemplate="%{text}<extra></extra>",
-        showlegend=False,
-    ))
-
-    # ── Frames de animación horizontal ───────────────────────────────────────
-    fig.frames = _construir_frames()
-
-    # ── Layout del globo — estilo vista satélite ──────────────────────────────
-    fig.update_layout(
-        geo=dict(
-            projection_type="orthographic",
-            projection_rotation=dict(lon=_LON_INICIO, lat=20, roll=0),
-            showland=True,
-            landcolor="#4a7a52",
-            showocean=True,
-            oceancolor="#1a3f6f",
-            showcountries=True,
-            countrycolor="rgba(255,255,255,0.30)",
-            countrywidth=0.6,
-            showcoastlines=True,
-            coastlinecolor="rgba(255,255,255,0.80)",
-            coastlinewidth=1.4,
-            showlakes=True,
-            lakecolor="#1a3f6f",
-            showrivers=False,
-            showframe=False,
-            bgcolor="rgba(0,0,0,0)",
-            lataxis=dict(showgrid=False),
-            lonaxis=dict(showgrid=False),
-        ),
-        paper_bgcolor="#0a0a14",
-        plot_bgcolor="#0a0a14",
-        margin=dict(l=0, r=0, t=0, b=48),
-        height=580,
-        dragmode="zoom",
-        # ── Botones ▶ / ⏸ ────────────────────────────────────────────────────
-        updatemenus=[
-            dict(
-                type="buttons",
-                showactive=False,
-                x=0.5,
-                y=-0.04,
-                xanchor="center",
-                yanchor="top",
-                bgcolor="rgba(20,30,55,0.85)",
-                bordercolor="rgba(255,255,255,0.25)",
-                borderwidth=1,
-                font=dict(color="white", size=14),
-                buttons=[
-                    dict(
-                        label="▶  Girar",
-                        method="animate",
-                        args=[
-                            None,
-                            dict(
-                                frame=dict(duration=_MS_POR_FRAME, redraw=True),
-                                fromcurrent=True,
-                                transition=dict(duration=0),
-                                mode="immediate",
-                            ),
-                        ],
-                    ),
-                    dict(
-                        label="⏸  Pausa",
-                        method="animate",
-                        args=[
-                            [None],
-                            dict(
-                                frame=dict(duration=0, redraw=False),
-                                mode="immediate",
-                                transition=dict(duration=0),
-                            ),
-                        ],
-                    ),
-                ],
-            )
-        ],
-    )
-
-    return fig
+    // Rotación horizontal automática (solo eje Y)
+    world.controls().autoRotate      = true;
+    world.controls().autoRotateSpeed = 0.7;
+    world.controls().enableZoom      = true;
+  </script>
+</body>
+</html>"""
 
 
 def renderizar_mapa(df: pd.DataFrame) -> pd.Series | None:
     """
-    Renderiza el globo 3D y captura el clic del usuario.
+    Renderiza el globo 3D satelital y retorna la fila seleccionada (o None).
 
     Parámetros:
         df (pd.DataFrame): DataFrame filtrado con las visitas.
 
     Retorna:
-        pd.Series | None: Fila del DataFrame clickeada, o None.
+        pd.Series | None: Fila del DataFrame seleccionada, o None.
     """
     if df.empty:
         st.warning("No hay visitas para mostrar con los filtros seleccionados.")
         return None
 
-    fig = construir_globo(df)
+    # Preparar datos para globe.gl
+    puntos = [
+        {
+            "lat":   float(row["latitud"]),
+            "lon":   float(row["longitud"]),
+            "color": COLORES_ACTIVIDAD.get(str(row["tipo_actividad"]), "#FFFFFF"),
+            "pais":  str(row["pais"]),
+            "ciudad":str(row["ciudad"]),
+            "tipo":  str(row["tipo_actividad"]),
+            "fecha": str(row["fecha"])[:10],
+            "dias":  int(row["duracion_dias"]),
+        }
+        for _, row in df.iterrows()
+    ]
 
-    evento = st.plotly_chart(
-        fig,
-        use_container_width=True,
-        key="mapa_globo",
-        on_select="rerun",
-        selection_mode="points",
-    )
+    # Renderizar globo satelital
+    components.html(_html_globo(json.dumps(puntos)), height=528, scrolling=False)
 
-    puntos = (
-        evento.selection.points
-        if evento and hasattr(evento, "selection") and evento.selection
-        else []
-    )
+    # ── Botones de selección de visita ────────────────────────────────────────
+    st.caption("👆 Pasa el cursor sobre un marcador para ver el tooltip · "
+               "Haz clic en un botón para ver el detalle completo:")
 
-    if puntos:
-        point_idx = puntos[0].get("point_index", -1)
-        ultimo    = st.session_state.get("_ultimo_clic_mapa")
-
-        if point_idx != ultimo:
-            st.session_state["_ultimo_clic_mapa"] = point_idx
-            if 0 <= point_idx < len(df):
-                return df.iloc[point_idx]
+    cols = st.columns(len(df))
+    for col, (_, row) in zip(cols, df.iterrows()):
+        color = COLORES_ACTIVIDAD.get(str(row["tipo_actividad"]), "#FFFFFF")
+        etiqueta = f"{row['pais']} — {row['ciudad']}"
+        with col:
+            st.markdown(
+                f"<div style='text-align:center;margin-bottom:2px;"
+                f"font-size:11px;color:{color};'>■ {row['tipo_actividad']}</div>",
+                unsafe_allow_html=True,
+            )
+            if st.button(etiqueta, key=f"btn_v_{int(row['id'])}", use_container_width=True):
+                return row
 
     return None
