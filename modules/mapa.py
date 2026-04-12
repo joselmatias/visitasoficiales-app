@@ -21,7 +21,7 @@ COLORES_ACTIVIDAD = {
     "Visita Oficial":           "#4FC3F7",
 }
 
-# CartoDB Dark Matter sin etiquetas — base oscura uniforme, sin nombres
+# CartoDB Dark Matter sin etiquetas ni fronteras — base oscura limpia
 TILE_DARK = (
     "https://{s}.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}{r}.png"
 )
@@ -30,12 +30,13 @@ TILE_DARK_ATTR = (
     'contributors &copy; <a href="https://carto.com/">CARTO</a>'
 )
 
-# Color oscuro uniforme para océanos y continentes
+# Color de fondo uniforme (océano = continente)
 _COLOR_FONDO = "#0d0d0d"
-# URL GeoJSON de países del mundo (folium examples — sin dependencia extra)
-_GEOJSON_PAISES = (
-    "https://raw.githubusercontent.com/python-visualization/folium/"
-    "master/examples/data/world-countries.json"
+
+# Natural Earth 110m — masas de tierra como polígonos continuos sin fronteras internas
+_GEOJSON_TIERRA = (
+    "https://raw.githubusercontent.com/nvkelso/natural-earth-vector/"
+    "master/geojson/ne_110m_land.geojson"
 )
 
 
@@ -86,20 +87,20 @@ def construir_mapa(df: pd.DataFrame) -> folium.Map:
         control_scale=True,
     )
 
-    # Igualar el color del océano (fondo del contenedor Leaflet) al del continente
+    # Igualar el color del océano al del continente
     mapa.get_root().html.add_child(folium.Element(
         f'<style>.leaflet-container {{ background: {_COLOR_FONDO} !important; }}</style>'
     ))
 
-    # Países con relleno oscuro uniforme y bordes blancos gruesos, sin nombres
+    # Masas de tierra con relleno oscuro uniforme y solo bordes de continente (sin fronteras internas)
     folium.GeoJson(
-        _GEOJSON_PAISES,
+        _GEOJSON_TIERRA,
         style_function=lambda _: {
             "fillColor":   _COLOR_FONDO,
             "color":       "#ffffff",
-            "weight":      2.0,
+            "weight":      1.8,
             "fillOpacity": 1.0,
-            "opacity":     0.85,
+            "opacity":     0.9,
         },
     ).add_to(mapa)
 
