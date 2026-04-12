@@ -95,7 +95,7 @@ def renderizar_filtros(df: pd.DataFrame) -> pd.DataFrame:
 
     # ── Botón "Ver todos" para resetear filtros ───────────────────────────────
     st.sidebar.markdown("---")
-    if st.sidebar.button("Ver todos", use_container_width=True, key="btn_ver_todos"):
+    if st.sidebar.button("Restablecer", use_container_width=True, key="btn_ver_todos"):
         st.session_state["filtro_pais"] = "Todos"
         st.session_state["filtro_tipos"] = TIPOS_ACTIVIDAD.copy()
         st.session_state["filtro_fecha_inicio"] = date(2024, 1, 1)

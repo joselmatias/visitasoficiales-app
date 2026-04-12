@@ -7,10 +7,18 @@ El sidebar contiene solo los filtros
 import os
 import pandas as pd
 import streamlit as st
+from PIL import Image
 
 from modules.filtros import renderizar_filtros
 from modules.mapa import renderizar_mapa
 from modules.detalle_visita import mostrar_foto, _badge_tipo, _formatear_fecha
+
+
+def _cargar_logo() -> Image.Image | None:
+    ruta = os.path.join(os.path.dirname(__file__), "assets", "logo_presidencia.png")
+    if os.path.exists(ruta):
+        return Image.open(ruta)
+    return None
 
 st.set_page_config(
     layout="wide",
@@ -76,11 +84,15 @@ def main():
     # ── Cargar datos ──────────────────────────────────────────────────────────
     df_completo = cargar_datos()
 
-    # ── Sidebar: solo filtros ─────────────────────────────────────────────────
+    # ── Sidebar: logo + filtros ───────────────────────────────────────────────
+    logo = _cargar_logo()
+    if logo:
+        st.sidebar.image(logo, use_container_width=True)
+        st.sidebar.markdown("---")
+
     df_filtrado = renderizar_filtros(df_completo)
 
     # ── Si la visita seleccionada ya no está en el filtro activo, limpiarla ───
-    # Esto resuelve: "filtro Colombia pero sigue mostrando detalle de Japón"
     visita_activa = st.session_state.get("visita_seleccionada")
     if visita_activa is not None:
         ids_visibles = df_filtrado["id"].tolist()
@@ -89,12 +101,23 @@ def main():
             st.session_state["_ultimo_clic_mapa"] = None
             visita_activa = None
 
-    # ── Cabecera ──────────────────────────────────────────────────────────────
-    st.title("🌍 Visitas Oficiales — Máxima Autoridad")
-    st.caption(
-        "Visualización geoespacial · Vista satélite · "
-        "Versión de prueba · 3 países · 9 visitas"
-    )
+    # ── Cabecera: logo + título ───────────────────────────────────────────────
+    if logo:
+        col_logo, col_titulo = st.columns([1, 5])
+        with col_logo:
+            st.image(logo, use_container_width=True)
+        with col_titulo:
+            st.title("🌍 Visitas Oficiales — Máxima Autoridad")
+            st.caption(
+                "Visualización geoespacial · Vista satélite · "
+                "Versión de prueba · 3 países · 9 visitas"
+            )
+    else:
+        st.title("🌍 Visitas Oficiales — Máxima Autoridad")
+        st.caption(
+            "Visualización geoespacial · Vista satélite · "
+            "Versión de prueba · 3 países · 9 visitas"
+        )
 
     # ── Métricas ──────────────────────────────────────────────────────────────
     metricas = calcular_metricas(df_filtrado)
