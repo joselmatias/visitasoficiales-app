@@ -126,7 +126,6 @@ def main():
     logo = _cargar_logo()
     if logo:
         st.sidebar.image(logo, use_container_width=True)
-        st.sidebar.markdown("---")
 
     df_filtrado = renderizar_filtros(df_completo)
 
@@ -148,18 +147,16 @@ def main():
             st.title("🌍 Visitas Oficiales — Superintendente de Competencia Económica")
             st.caption(
                 "Visualización geoespacial · Vista satélite · "
-                "Versión de prueba · 3 países · 3 visitas"
+                "Versión de prueba · 3 países · 3 visitas · "
+                "Desarrollado por: Dirección Regional de Abogacía de la Competencia — Intendencia Regional · DRAC-IR"
             )
     else:
         st.title("🌍 Visitas Oficiales — Superintendente de Competencia Económica")
         st.caption(
             "Visualización geoespacial · Vista satélite · "
-            "Versión de prueba · 3 países · 3 visitas"
+            "Versión de prueba · 3 países · 3 visitas · "
+            "Desarrollado por: Dirección Regional de Abogacía de la Competencia — Intendencia Regional · DRAC-IR"
         )
-    st.caption(
-        "Desarrollado por: Dirección Regional de Abogacía de la Competencia "
-        "— Intendencia Regional · DRAC-IR"
-    )
 
     # ── Métricas ──────────────────────────────────────────────────────────────
     metricas = calcular_metricas(df_filtrado)

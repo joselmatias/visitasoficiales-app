@@ -51,8 +51,6 @@ def renderizar_filtros(df: pd.DataFrame) -> pd.DataFrame:
     """
     _inicializar_estado()
 
-    st.sidebar.markdown("---")
-
     # ── Filtro por país ───────────────────────────────────────────────────────
     pais_seleccionado = st.sidebar.selectbox(
         label="País",
