@@ -122,6 +122,18 @@ def main():
     # ── Cargar datos ──────────────────────────────────────────────────────────
     df_completo = cargar_datos()
 
+    # ── Clic en globo: leer ?vid= y abrir detalle ─────────────────────────────
+    vid_param = st.query_params.get("vid")
+    if vid_param:
+        try:
+            match = df_completo[df_completo["id"] == int(vid_param)]
+            if not match.empty:
+                st.session_state["visita_seleccionada"] = match.iloc[0]
+        except (ValueError, KeyError):
+            pass
+        del st.query_params["vid"]
+        st.stop()
+
     # ── Sidebar: logo + filtros ───────────────────────────────────────────────
     logo = _cargar_logo()
     if logo:

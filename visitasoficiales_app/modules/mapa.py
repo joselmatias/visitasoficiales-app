@@ -1,8 +1,8 @@
 """
 mapa.py — Globo 3D satelital con globe.gl (Three.js via CDN, gratuito)
 Textura NASA Blue Marble + rotación horizontal automática
-Etiquetas fijas con nombre de ciudad + panel de info al hacer clic
-Selección de detalle completo mediante botones Streamlit debajo del globo
+Etiquetas fijas con nombre de ciudad
+Clic en ciudad/marcador → navega con ?vid=X para abrir panel de detalle completo
 """
 
 import json
@@ -25,116 +25,79 @@ def _html_globo(puntos_json: str) -> str:
     return f"""<!DOCTYPE html>
 <html>
 <head>
-<style>
-  * {{ box-sizing: border-box; margin: 0; padding: 0; }}
-  body {{ background: #0a0a14; overflow: hidden; font-family: sans-serif; }}
-  #g   {{ width: 100vw; height: 520px; }}
-
-  /* Panel de info al seleccionar ciudad */
-  #info {{
-    display: none;
-    position: absolute;
-    bottom: 18px;
-    left: 50%;
-    transform: translateX(-50%);
-    background: rgba(8, 12, 30, 0.88);
-    border: 1px solid rgba(255,255,255,0.18);
-    border-radius: 10px;
-    padding: 12px 18px;
-    color: #fff;
-    min-width: 220px;
-    max-width: 320px;
-    text-align: center;
-    backdrop-filter: blur(6px);
-    pointer-events: none;
-  }}
-  #info .ciudad  {{ font-size: 15px; font-weight: 700; margin-bottom: 4px; }}
-  #info .tipo    {{ font-size: 12px; margin-bottom: 6px; }}
-  #info .meta    {{ font-size: 12px; color: #ccc; line-height: 1.6; }}
-  #info .cerrar  {{
-    pointer-events: all;
-    cursor: pointer;
-    font-size: 11px;
-    color: #aaa;
-    margin-top: 6px;
-    display: inline-block;
-  }}
-</style>
+  <meta charset="UTF-8">
+  <style>
+    * {{ box-sizing: border-box; margin: 0; padding: 0; }}
+    body {{ background: #0a0a14; overflow: hidden; font-family: sans-serif; }}
+    #g   {{ width: 100vw; height: 520px; }}
+  </style>
 </head>
 <body>
-<div id="g"></div>
-<div id="info">
-  <div class="ciudad" id="i-ciudad"></div>
-  <div class="tipo"   id="i-tipo"></div>
-  <div class="meta"   id="i-meta"></div>
-  <span class="cerrar" onclick="document.getElementById('info').style.display='none'">✕ cerrar</span>
-</div>
+  <div id="g"></div>
+  <script src="https://unpkg.com/globe.gl/dist/globe.gl.min.js"></script>
+  <script>
+    const pts = {puntos_json};
 
-<script src="https://unpkg.com/globe.gl/dist/globe.gl.min.js"></script>
-<script>
-  const pts = {puntos_json};
+    function abrirDetalle(p) {{
+      const url = new URL(window.parent.location.href);
+      url.searchParams.set('vid', p.id);
+      window.parent.location.href = url.toString();
+    }}
 
-  function mostrarInfo(p) {{
-    document.getElementById('i-ciudad').innerHTML =
-      p.pais + ' &mdash; ' + p.ciudad;
-    document.getElementById('i-tipo').innerHTML =
-      '<span style="color:' + p.color + '">■</span> ' + p.tipo;
-    document.getElementById('i-meta').innerHTML =
-      '📅 ' + p.fecha + '<br>⏱️ ' + p.dias + ' días';
-    document.getElementById('info').style.display = 'block';
-  }}
+    const world = Globe({{ animateIn: false }})
+      .globeImageUrl(
+        'https://unpkg.com/three-globe/example/img/earth-blue-marble.jpg')
+      .bumpImageUrl(
+        'https://unpkg.com/three-globe/example/img/earth-topology.png')
+      .backgroundColor('#0a0a14')
 
-  const world = Globe({{ animateIn: false }})
-    .globeImageUrl('https://unpkg.com/three-globe/example/img/earth-blue-marble.jpg')
-    .bumpImageUrl('https://unpkg.com/three-globe/example/img/earth-topology.png')
-    .backgroundColor('#0a0a14')
+      // Marcadores
+      .pointsData(pts)
+      .pointLat('lat')
+      .pointLng('lon')
+      .pointColor('color')
+      .pointRadius(0.45)
+      .pointAltitude(0.05)
+      .onPointClick(p => abrirDetalle(p))
 
-    // Marcadores de puntos
-    .pointsData(pts)
-    .pointLat('lat')
-    .pointLng('lon')
-    .pointColor('color')
-    .pointRadius(0.45)
-    .pointAltitude(0.05)
-    .onPointClick(p => mostrarInfo(p))
+      // Etiquetas fijas con nombre de ciudad
+      .labelsData(pts)
+      .labelLat('lat')
+      .labelLng('lon')
+      .labelText('ciudad')
+      .labelSize(1.4)
+      .labelDotRadius(0.35)
+      .labelDotOrientation(() => 'bottom')
+      .labelColor(p => p.color)
+      .labelResolution(3)
+      .onLabelClick(p => abrirDetalle(p))
 
-    // Etiquetas fijas con nombre de ciudad
-    .labelsData(pts)
-    .labelLat('lat')
-    .labelLng('lon')
-    .labelText('ciudad')
-    .labelSize(1.4)
-    .labelDotRadius(0.35)
-    .labelDotOrientation(() => 'bottom')
-    .labelColor(p => p.color)
-    .labelResolution(3)
-    .onLabelClick(p => mostrarInfo(p))
+      (document.getElementById('g'));
 
-    (document.getElementById('g'));
+    // Rotación horizontal automática
+    world.controls().autoRotate      = true;
+    world.controls().autoRotateSpeed = 0.7;
+    world.controls().enableZoom      = true;
 
-  // Rotación horizontal automática
-  world.controls().autoRotate      = true;
-  world.controls().autoRotateSpeed = 0.7;
-  world.controls().enableZoom      = true;
-
-  // Pausar rotación al interactuar, reanudar al soltar
-  const ctrl = world.controls();
-  document.getElementById('g').addEventListener('mousedown', () => ctrl.autoRotate = false);
-  document.addEventListener('mouseup', () => ctrl.autoRotate = true);
-</script>
+    // Pausa al arrastrar, reanuda al soltar
+    const ctrl = world.controls();
+    document.getElementById('g').addEventListener('mousedown',
+      () => ctrl.autoRotate = false);
+    document.addEventListener('mouseup',
+      () => ctrl.autoRotate = true);
+  </script>
 </body>
 </html>"""
 
 
 def renderizar_mapa(df: pd.DataFrame) -> pd.Series | None:
     """
-    Renderiza el globo 3D satelital y retorna la fila seleccionada (o None).
-
-    Parámetros:
-        df (pd.DataFrame): DataFrame filtrado con las visitas.
+    Renderiza el globo 3D satelital.
+    Los clics en el globo navegan con ?vid=X (manejado en app.py).
+    Los botones debajo también permiten seleccionar visita.
 
     Retorna:
-        pd.Series | None: Fila del DataFrame seleccionada, o None.
+        pd.Series | None: Fila seleccionada via botón, o None.
     """
     if df.empty:
         st.warning("No hay visitas para mostrar con los filtros seleccionados.")
@@ -142,6 +105,7 @@ def renderizar_mapa(df: pd.DataFrame) -> pd.Series | None:
 
     puntos = [
         {
+            "id":    int(row["id"]),
             "lat":   float(row["latitud"]),
             "lon":   float(row["longitud"]),
             "color": COLORES_ACTIVIDAD.get(str(row["tipo_actividad"]), "#FFFFFF"),
@@ -154,12 +118,15 @@ def renderizar_mapa(df: pd.DataFrame) -> pd.Series | None:
         for _, row in df.iterrows()
     ]
 
-    # Globo satelital
-    components.html(_html_globo(json.dumps(puntos)), height=528, scrolling=False)
+    components.html(
+        _html_globo(json.dumps(puntos, ensure_ascii=False)),
+        height=528,
+        scrolling=False,
+    )
 
-    # Botones para abrir el panel de detalle completo (foto + descripción)
-    st.caption("Haz clic en el globo para ver fecha y actividad · "
-               "Usa los botones para el detalle completo:")
+    # Botones alternativos (no requieren recarga de página)
+    st.caption("👆 Haz clic en una ciudad del globo · "
+               "o usa los botones para ver el detalle:")
     cols = st.columns(len(df))
     for col, (_, row) in zip(cols, df.iterrows()):
         color = COLORES_ACTIVIDAD.get(str(row["tipo_actividad"]), "#FFFFFF")
