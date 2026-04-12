@@ -147,15 +147,21 @@ def main():
             st.title("🌍 Visitas Oficiales — Superintendente de Competencia Económica")
             st.caption(
                 "Visualización geoespacial · Vista satélite · "
-                "Versión de prueba · 3 países · 3 visitas · "
-                "Desarrollado por: Dirección Regional de Abogacía de la Competencia — Intendencia Regional · DRAC-IR"
+                "Versión de prueba · 3 países · 3 visitas"
+            )
+            st.caption(
+                "Desarrollado por: Dirección Regional de Abogacía de la Competencia "
+                "— Intendencia Regional · DRAC-IR"
             )
     else:
         st.title("🌍 Visitas Oficiales — Superintendente de Competencia Económica")
         st.caption(
             "Visualización geoespacial · Vista satélite · "
-            "Versión de prueba · 3 países · 3 visitas · "
-            "Desarrollado por: Dirección Regional de Abogacía de la Competencia — Intendencia Regional · DRAC-IR"
+            "Versión de prueba · 3 países · 3 visitas"
+        )
+        st.caption(
+            "Desarrollado por: Dirección Regional de Abogacía de la Competencia "
+            "— Intendencia Regional · DRAC-IR"
         )
 
     # ── Métricas ──────────────────────────────────────────────────────────────
