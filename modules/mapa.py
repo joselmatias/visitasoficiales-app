@@ -1,222 +1,103 @@
 """
-mapa.py — Mapa interactivo tipo Google Earth con Folium
-Satélite ESRI + zoom suave + pantalla completa + minimap + trayectoria
-Captura clics via st_folium para identificar la visita seleccionada
+mapa.py — Globo 3D interactivo con Plotly (proyección ortográfica)
+Fondo oscuro + bordes de continente en blanco + marcadores de visitas
+Captura clics via st.plotly_chart on_select para identificar la visita seleccionada
 """
 
-import math
 import pandas as pd
-import folium
-from folium.plugins import Fullscreen, MiniMap, MousePosition
+import plotly.graph_objects as go
 import streamlit as st
-from streamlit_folium import st_folium
 
 # Paleta de colores por tipo de actividad
 COLORES_ACTIVIDAD = {
-    "Firma de Convenio":        "#00E5CC",
-    "Conferencia Internacional": "#C77DFF",
-    "Visita Técnica":           "#FFD166",
-    "Reunión Bilateral":        "#FFEF5E",
-    "Foro / Cumbre":            "#FF6B9D",
-    "Visita Oficial":           "#4FC3F7",
+    "Firma de Convenio":         "#00E5CC",
+    "Conferencia Internacional":  "#C77DFF",
+    "Visita Técnica":            "#FFD166",
+    "Reunión Bilateral":         "#FFEF5E",
+    "Foro / Cumbre":             "#FF6B9D",
+    "Visita Oficial":            "#4FC3F7",
 }
 
-# CartoDB Dark Matter sin etiquetas ni fronteras — base oscura limpia
-TILE_DARK = (
-    "https://{s}.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}{r}.png"
-)
-TILE_DARK_ATTR = (
-    '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> '
-    'contributors &copy; <a href="https://carto.com/">CARTO</a>'
-)
 
-# Color de fondo uniforme (océano = continente)
-_COLOR_FONDO = "#0d0d0d"
-
-# Natural Earth 110m — masas de tierra como polígonos continuos sin fronteras internas
-_GEOJSON_TIERRA = (
-    "https://raw.githubusercontent.com/nvkelso/natural-earth-vector/"
-    "master/geojson/ne_110m_land.geojson"
-)
-
-
-def _offsets_circulares(n: int, radio: float = 0.8) -> list[tuple]:
+def construir_globo(df: pd.DataFrame) -> go.Figure:
     """
-    Genera n posiciones en círculo para separar marcadores en la misma ciudad.
-    Radio en grados (~80 km) — suficiente para verlos distintos al hacer zoom.
-    """
-    if n == 1:
-        return [(0.0, 0.0)]
-    angulos = [2 * math.pi * i / n for i in range(n)]
-    return [(radio * math.sin(a), radio * math.cos(a)) for a in angulos]
-
-
-def _posiciones_marcadores(df: pd.DataFrame) -> dict:
-    """
-    Devuelve un dict {idx_fila: (lat_marcador, lon_marcador)} con las
-    coordenadas reales de cada marcador en el mapa (incluye offsets circulares).
-    Usa los mismos parámetros que construir_mapa para que coincidan exactamente.
-    """
-    posiciones = {}
-    for (lat_base, lon_base), grupo in df.groupby(["latitud", "longitud"]):
-        n = len(grupo)
-        offsets = _offsets_circulares(n, radio=0.5)
-        for (idx, _), (dlat, dlon) in zip(grupo.iterrows(), offsets):
-            posiciones[idx] = (lat_base + dlat, lon_base + dlon)
-    return posiciones
-
-
-def construir_mapa(df: pd.DataFrame) -> folium.Map:
-    """
-    Construye el mapa Folium con fondo satélite, marcadores, trayectoria
-    y controles interactivos (pantalla completa, minimap, coordenadas).
+    Construye el globo 3D con proyección ortográfica.
 
     Parámetros:
         df (pd.DataFrame): DataFrame filtrado con las visitas.
 
     Retorna:
-        folium.Map: Objeto mapa listo para renderizar.
+        go.Figure: Figura Plotly lista para renderizar.
     """
+    fig = go.Figure()
 
-    # ── Base del mapa — fondo oscuro uniforme sin etiquetas ──────────────────
-    mapa = folium.Map(
-        location=[20, 10],
-        zoom_start=2,
-        tiles=TILE_DARK,
-        attr=TILE_DARK_ATTR,
-        control_scale=True,
-    )
+    # ── Marcadores de visitas ─────────────────────────────────────────────────
+    colores  = [COLORES_ACTIVIDAD.get(t, "#FFFFFF") for t in df["tipo_actividad"]]
+    tamanos  = [max(16, int(d) * 4) for d in df["duracion_dias"]]
+    tooltips = [
+        (
+            f"<b>{row['pais']} — {row['ciudad']}</b><br>"
+            f"<span style='color:{COLORES_ACTIVIDAD.get(row['tipo_actividad'], '#fff')}'>"
+            f"■ {row['tipo_actividad']}</span><br>"
+            f"📅 {str(row['fecha'])[:10]}<br>"
+            f"🤝 {row['contraparte']}<br>"
+            f"⏱️ {row['duracion_dias']} días"
+        )
+        for _, row in df.iterrows()
+    ]
 
-    # Igualar el color del océano al del continente
-    mapa.get_root().html.add_child(folium.Element(
-        f'<style>.leaflet-container {{ background: {_COLOR_FONDO} !important; }}</style>'
+    fig.add_trace(go.Scattergeo(
+        lat=df["latitud"].tolist(),
+        lon=df["longitud"].tolist(),
+        mode="markers",
+        marker=dict(
+            size=tamanos,
+            color=colores,
+            line=dict(color="white", width=2),
+            opacity=0.92,
+        ),
+        text=tooltips,
+        customdata=list(range(len(df))),
+        hovertemplate="%{text}<extra></extra>",
+        showlegend=False,
     ))
 
-    # Masas de tierra con relleno oscuro uniforme y solo bordes de continente (sin fronteras internas)
-    folium.GeoJson(
-        _GEOJSON_TIERRA,
-        style_function=lambda _: {
-            "fillColor":   _COLOR_FONDO,
-            "color":       "#ffffff",
-            "weight":      1.8,
-            "fillOpacity": 1.0,
-            "opacity":     0.9,
-        },
-    ).add_to(mapa)
-
-    # ── Marcadores por visita (separados si comparten ubicación) ──────────────
-    # Agrupar por ciudad para calcular offsets
-    grupos = df.groupby(["latitud", "longitud"])
-
-    for (lat_base, lon_base), grupo in grupos:
-        n = len(grupo)
-        offsets = _offsets_circulares(n, radio=0.5)
-
-        for idx_local, ((_, fila), (dlat, dlon)) in enumerate(
-            zip(grupo.iterrows(), offsets)
-        ):
-            color = COLORES_ACTIVIDAD.get(fila["tipo_actividad"], "#FFFFFF")
-            lat_m = lat_base + dlat
-            lon_m = lon_base + dlon
-            radio_px = max(12, int(fila["duracion_dias"]) * 3)
-
-            # Tooltip flotante — incluye número de visita, país, ciudad y detalle
-            tooltip_html = f"""
-            <div style="
-                font-family: Arial, sans-serif;
-                font-size: 13px;
-                background: rgba(0,0,0,0.85);
-                color: white;
-                padding: 8px 12px;
-                border-radius: 8px;
-                border-left: 4px solid {color};
-                min-width: 220px;
-            ">
-                <b style="font-size:15px;">#{idx_local + 1} &nbsp; 🌍 {fila['pais']} — {fila['ciudad']}</b><br>
-                <span style="color:{color};">■</span>
-                <b>{fila['tipo_actividad']}</b><br>
-                📅 {str(fila['fecha'])[:10]}<br>
-                🤝 {fila['contraparte']}<br>
-                ⏱️ {fila['duracion_dias']} días
-            </div>
-            """
-
-            # Marcador circular — ocupa toda el área clicable sin superposición
-            folium.CircleMarker(
-                location=[lat_m, lon_m],
-                radius=radio_px,
-                color="white",
-                weight=2,
-                fill=True,
-                fill_color=color,
-                fill_opacity=0.88,
-                tooltip=folium.Tooltip(tooltip_html, sticky=True),
-            ).add_to(mapa)
-
-            # Número encima del círculo usando DivIcon overlay (no interactivo)
-            folium.Marker(
-                location=[lat_m, lon_m],
-                icon=folium.DivIcon(
-                    html=f"""
-                    <div style="
-                        font-size: 11px;
-                        font-weight: bold;
-                        color: black;
-                        text-align: center;
-                        line-height: {radio_px * 2}px;
-                        width: {radio_px * 2}px;
-                        height: {radio_px * 2}px;
-                        margin-top: -{radio_px}px;
-                        margin-left: -{radio_px}px;
-                        pointer-events: none;
-                        user-select: none;
-                    ">{idx_local + 1}</div>
-                    """,
-                    icon_size=(radio_px * 2, radio_px * 2),
-                    icon_anchor=(radio_px, radio_px),
-                ),
-                interactive=False,
-            ).add_to(mapa)
-
-    # ── Plugins interactivos ──────────────────────────────────────────────────
-    # Pantalla completa
-    Fullscreen(
-        position="topright",
-        title="Pantalla completa",
-        title_cancel="Salir",
-        force_separate_button=True,
-    ).add_to(mapa)
-
-    # Minimapa de referencia
-    minimap_tile = folium.TileLayer(
-        tiles=TILE_DARK,
-        attr=TILE_DARK_ATTR,
+    # ── Layout del globo ──────────────────────────────────────────────────────
+    fig.update_layout(
+        geo=dict(
+            projection_type="orthographic",
+            projection_rotation=dict(lon=15, lat=20, roll=0),
+            # Tierra y océano en el mismo tono oscuro
+            showland=True,
+            landcolor="#111118",
+            showocean=True,
+            oceancolor="#0a0a10",
+            # Solo bordes de continente (sin división por país)
+            showcountries=False,
+            showcoastlines=True,
+            coastlinecolor="#ffffff",
+            coastlinewidth=1.8,
+            # Extras visuales
+            showlakes=False,
+            showrivers=False,
+            showframe=False,
+            bgcolor="rgba(0,0,0,0)",
+            lataxis=dict(showgrid=False),
+            lonaxis=dict(showgrid=False),
+        ),
+        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="rgba(0,0,0,0)",
+        margin=dict(l=0, r=0, t=0, b=0),
+        height=560,
+        dragmode="zoom",
     )
-    MiniMap(
-        tile_layer=minimap_tile,
-        position="bottomright",
-        width=160,
-        height=120,
-        collapsed_width=25,
-        collapsed_height=25,
-        zoom_level_offset=-5,
-        toggle_display=True,
-    ).add_to(mapa)
 
-    # Coordenadas del cursor
-    MousePosition(
-        position="bottomleft",
-        separator=" | ",
-        prefix="Lat/Lon:",
-    ).add_to(mapa)
-
-    return mapa
+    return fig
 
 
 def renderizar_mapa(df: pd.DataFrame) -> pd.Series | None:
     """
-    Renderiza el mapa Folium y captura el clic del usuario.
-    Identifica la visita más cercana al punto clickeado.
+    Renderiza el globo 3D y captura el clic del usuario.
 
     Parámetros:
         df (pd.DataFrame): DataFrame filtrado con las visitas.
@@ -228,51 +109,29 @@ def renderizar_mapa(df: pd.DataFrame) -> pd.Series | None:
         st.warning("No hay visitas para mostrar con los filtros seleccionados.")
         return None
 
-    mapa = construir_mapa(df)
+    fig = construir_globo(df)
 
-    resultado = st_folium(
-        mapa,
+    evento = st.plotly_chart(
+        fig,
         use_container_width=True,
-        height=560,
-        key="mapa_folium",
-        returned_objects=["last_object_clicked"],
+        key="mapa_globo",
+        on_select="rerun",
+        selection_mode="points",
     )
 
-    # Detectar solo clics NUEVOS comparando con el último clic guardado
-    clic = resultado.get("last_object_clicked") if resultado else None
+    puntos = (
+        evento.selection.points
+        if evento and hasattr(evento, "selection") and evento.selection
+        else []
+    )
 
-    if clic and clic.get("lat") is not None:
-        lat_c = round(clic["lat"], 5)
-        lon_c = round(clic["lng"], 5)
-        clic_key = (lat_c, lon_c)
+    if puntos:
+        point_idx = puntos[0].get("point_index", -1)
+        ultimo    = st.session_state.get("_ultimo_clic_mapa")
 
-        # Recuperar el último clic registrado
-        ultimo = st.session_state.get("_ultimo_clic_mapa")
-        ultimo_key = (
-            round(ultimo["lat"], 5),
-            round(ultimo["lng"], 5),
-        ) if ultimo else None
-
-        # Solo procesar si las coordenadas son distintas al clic anterior
-        if clic_key != ultimo_key:
-            st.session_state["_ultimo_clic_mapa"] = clic
-
-            # Usar posiciones reales de los marcadores (con offsets circulares)
-            # para identificar cuál fue clickeado. Sin esto, todos los marcadores
-            # de una misma ciudad comparten la misma lat/lon base y solo responde uno.
-            posiciones = _posiciones_marcadores(df)
-            df_tmp = df.copy()
-            df_tmp["_lat_m"] = df_tmp.index.map(lambda i: posiciones[i][0])
-            df_tmp["_lon_m"] = df_tmp.index.map(lambda i: posiciones[i][1])
-            df_tmp["_dist"] = (
-                (df_tmp["_lat_m"] - lat_c) ** 2 +
-                (df_tmp["_lon_m"] - lon_c) ** 2
-            ) ** 0.5
-
-            cercano = df_tmp[df_tmp["_dist"] < 1.0]
-            if not cercano.empty:
-                return cercano.loc[cercano["_dist"].idxmin()].drop(
-                    columns=["_lat_m", "_lon_m", "_dist"]
-                )
+        if point_idx != ultimo:
+            st.session_state["_ultimo_clic_mapa"] = point_idx
+            if 0 <= point_idx < len(df):
+                return df.iloc[point_idx]
 
     return None
