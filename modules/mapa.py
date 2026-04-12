@@ -1,6 +1,7 @@
 """
 mapa.py — Globo 3D interactivo con Plotly (proyección ortográfica)
 Estilo vista satélite: océanos azul profundo + tierra en tonos naturales
+Animación horizontal (rotación lon) con botones ▶ / ⏸
 Captura clics via st.plotly_chart on_select para identificar la visita seleccionada
 """
 
@@ -18,10 +19,36 @@ COLORES_ACTIVIDAD = {
     "Visita Oficial":            "#4FC3F7",
 }
 
+# Configuración de la animación
+_LON_INICIO  = 15    # longitud inicial del centro del globo
+_PASO_GRADOS = 4     # grados por frame
+_N_ROTACIONES = 10   # número de vueltas completas antes de detenerse
+_MS_POR_FRAME = 55   # velocidad: menor = más rápido
+
+
+def _construir_frames() -> list[go.Frame]:
+    """Genera los frames de rotación horizontal (solo lon varía, lat fija en 20°)."""
+    total = _N_ROTACIONES * (360 // _PASO_GRADOS)
+    frames = []
+    for i in range(total):
+        lon = (_LON_INICIO + i * _PASO_GRADOS) % 360
+        if lon > 180:
+            lon -= 360
+        frames.append(
+            go.Frame(
+                layout=dict(
+                    geo=dict(projection_rotation=dict(lon=lon, lat=20, roll=0))
+                ),
+                name=str(i),
+            )
+        )
+    return frames
+
 
 def construir_globo(df: pd.DataFrame) -> go.Figure:
     """
-    Construye el globo 3D con proyección ortográfica estilo vista satélite.
+    Construye el globo 3D con proyección ortográfica estilo vista satélite
+    y animación de rotación horizontal.
 
     Parámetros:
         df (pd.DataFrame): DataFrame filtrado con las visitas.
@@ -62,26 +89,24 @@ def construir_globo(df: pd.DataFrame) -> go.Figure:
         showlegend=False,
     ))
 
+    # ── Frames de animación horizontal ───────────────────────────────────────
+    fig.frames = _construir_frames()
+
     # ── Layout del globo — estilo vista satélite ──────────────────────────────
     fig.update_layout(
         geo=dict(
             projection_type="orthographic",
-            projection_rotation=dict(lon=15, lat=20, roll=0),
-            # Tierra: tonos naturales verdes/marrones como vista satelital
+            projection_rotation=dict(lon=_LON_INICIO, lat=20, roll=0),
             showland=True,
-            landcolor="#4a7a52",        # verde natural / vegetación
-            # Océano: azul profundo oceánico
+            landcolor="#4a7a52",
             showocean=True,
-            oceancolor="#1a3f6f",       # azul océano profundo
-            # Bordes de país sutiles
+            oceancolor="#1a3f6f",
             showcountries=True,
             countrycolor="rgba(255,255,255,0.30)",
             countrywidth=0.6,
-            # Costlines con blanco para resaltar
             showcoastlines=True,
             coastlinecolor="rgba(255,255,255,0.80)",
             coastlinewidth=1.4,
-            # Lagos en el mismo tono del océano
             showlakes=True,
             lakecolor="#1a3f6f",
             showrivers=False,
@@ -90,12 +115,53 @@ def construir_globo(df: pd.DataFrame) -> go.Figure:
             lataxis=dict(showgrid=False),
             lonaxis=dict(showgrid=False),
         ),
-        # Fondo oscuro tipo espacio exterior alrededor del globo
         paper_bgcolor="#0a0a14",
         plot_bgcolor="#0a0a14",
-        margin=dict(l=0, r=0, t=0, b=0),
-        height=560,
+        margin=dict(l=0, r=0, t=0, b=48),
+        height=580,
         dragmode="zoom",
+        # ── Botones ▶ / ⏸ ────────────────────────────────────────────────────
+        updatemenus=[
+            dict(
+                type="buttons",
+                showactive=False,
+                x=0.5,
+                y=-0.04,
+                xanchor="center",
+                yanchor="top",
+                bgcolor="rgba(20,30,55,0.85)",
+                bordercolor="rgba(255,255,255,0.25)",
+                borderwidth=1,
+                font=dict(color="white", size=14),
+                buttons=[
+                    dict(
+                        label="▶  Girar",
+                        method="animate",
+                        args=[
+                            None,
+                            dict(
+                                frame=dict(duration=_MS_POR_FRAME, redraw=True),
+                                fromcurrent=True,
+                                transition=dict(duration=0),
+                                mode="immediate",
+                            ),
+                        ],
+                    ),
+                    dict(
+                        label="⏸  Pausa",
+                        method="animate",
+                        args=[
+                            [None],
+                            dict(
+                                frame=dict(duration=0, redraw=False),
+                                mode="immediate",
+                                transition=dict(duration=0),
+                            ),
+                        ],
+                    ),
+                ],
+            )
+        ],
     )
 
     return fig
