@@ -92,33 +92,6 @@ def construir_mapa(df: pd.DataFrame) -> folium.Map:
         opacity=0.85,
     ).add_to(mapa)
 
-    # ── Línea de trayectoria cronológica ──────────────────────────────────────
-    df_ord = df.sort_values("fecha")
-    coords_linea = df_ord[["latitud", "longitud"]].values.tolist()
-
-    if len(coords_linea) > 1:
-        folium.PolyLine(
-            locations=coords_linea,
-            color="white",
-            weight=2,
-            opacity=0.4,
-            dash_array="8 6",
-            tooltip="Trayectoria cronológica",
-        ).add_to(mapa)
-
-        # Flechas de dirección en la línea
-        for i in range(len(coords_linea) - 1):
-            mid_lat = (coords_linea[i][0] + coords_linea[i+1][0]) / 2
-            mid_lon = (coords_linea[i][1] + coords_linea[i+1][1]) / 2
-            folium.Marker(
-                location=[mid_lat, mid_lon],
-                icon=folium.DivIcon(
-                    html='<div style="font-size:14px;color:white;opacity:0.6;">➤</div>',
-                    icon_size=(20, 20),
-                    icon_anchor=(10, 10),
-                ),
-            ).add_to(mapa)
-
     # ── Marcadores por visita (separados si comparten ubicación) ──────────────
     # Agrupar por ciudad para calcular offsets
     grupos = df.groupby(["latitud", "longitud"])

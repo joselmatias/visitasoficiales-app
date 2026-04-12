@@ -14,10 +14,39 @@ from modules.mapa import renderizar_mapa
 from modules.detalle_visita import mostrar_foto, _badge_tipo, _formatear_fecha
 
 
+CONTINENTES = {
+    "Japón":       "Asia",
+    "Alemania":    "Europa",
+    "Colombia":    "América del Sur",
+    "Brasil":      "América del Sur",
+    "Argentina":   "América del Sur",
+    "Chile":       "América del Sur",
+    "Perú":        "América del Sur",
+    "México":      "América del Norte",
+    "EEUU":        "América del Norte",
+    "Estados Unidos": "América del Norte",
+    "Canadá":      "América del Norte",
+    "Francia":     "Europa",
+    "España":      "Europa",
+    "Italia":      "Europa",
+    "Reino Unido": "Europa",
+    "China":       "Asia",
+    "India":       "Asia",
+    "Corea del Sur": "Asia",
+    "Australia":   "Oceanía",
+    "Sudáfrica":   "África",
+    "Egipto":      "África",
+}
+
+
 def _cargar_logo() -> Image.Image | None:
     ruta = os.path.join(os.path.dirname(__file__), "assets", "logo_presidencia.png")
     if os.path.exists(ruta):
-        return Image.open(ruta)
+        img = Image.open(ruta).convert("RGBA")
+        # Componer sobre fondo blanco para que sea visible en modo oscuro
+        fondo = Image.new("RGBA", img.size, (255, 255, 255, 255))
+        fondo.paste(img, mask=img.split()[3])
+        return fondo.convert("RGB")
     return None
 
 st.set_page_config(
@@ -36,13 +65,22 @@ def cargar_datos() -> pd.DataFrame:
 
 def calcular_metricas(df: pd.DataFrame) -> dict:
     if df.empty:
-        return {"total_visitas": 0, "paises_visitados": 0,
-                "total_dias": 0, "tipo_frecuente": "—"}
+        return {
+            "total_visitas": 0,
+            "paises_visitados": 0,
+            "total_dias": 0,
+            "tipo_frecuente": "—",
+            "tipos_actividad": 0,
+            "continentes": 0,
+        }
+    continentes_visitados = df["pais"].map(CONTINENTES).dropna().nunique()
     return {
         "total_visitas": len(df),
         "paises_visitados": df["pais"].nunique(),
         "total_dias": int(df["duracion_dias"].sum()),
         "tipo_frecuente": df["tipo_actividad"].value_counts().idxmax(),
+        "tipos_actividad": df["tipo_actividad"].nunique(),
+        "continentes": continentes_visitados,
     }
 
 
@@ -118,14 +156,22 @@ def main():
             "Visualización geoespacial · Vista satélite · "
             "Versión de prueba · 3 países · 9 visitas"
         )
+    st.caption(
+        "Desarrollado por: Dirección Regional de Abogacía de la Competencia "
+        "— Intendencia Regional · DRAC-IR"
+    )
 
     # ── Métricas ──────────────────────────────────────────────────────────────
     metricas = calcular_metricas(df_filtrado)
-    c1, c2, c3, c4 = st.columns(4)
+    c1, c2, c3 = st.columns(3)
     c1.metric("Total de Visitas", metricas["total_visitas"])
     c2.metric("Países Visitados", metricas["paises_visitados"])
     c3.metric("Total Días en Exterior", f"{metricas['total_dias']} días")
+
+    c4, c5, c6 = st.columns(3)
     c4.metric("Actividad más Frecuente", metricas["tipo_frecuente"])
+    c5.metric("Tipos de Actividad", metricas["tipos_actividad"])
+    c6.metric("Continentes Visitados", metricas["continentes"])
 
     st.divider()
 
