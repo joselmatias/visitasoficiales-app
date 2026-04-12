@@ -21,13 +21,21 @@ COLORES_ACTIVIDAD = {
     "Visita Oficial":           "#4FC3F7",
 }
 
-# CartoDB Dark Matter — mapamundi oscuro con bordes de países visibles
+# CartoDB Dark Matter sin etiquetas — base oscura uniforme, sin nombres
 TILE_DARK = (
-    "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
+    "https://{s}.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}{r}.png"
 )
 TILE_DARK_ATTR = (
     '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> '
     'contributors &copy; <a href="https://carto.com/">CARTO</a>'
+)
+
+# Color oscuro uniforme para océanos y continentes
+_COLOR_FONDO = "#0d0d0d"
+# URL GeoJSON de países del mundo (folium examples — sin dependencia extra)
+_GEOJSON_PAISES = (
+    "https://raw.githubusercontent.com/python-visualization/folium/"
+    "master/examples/data/world-countries.json"
 )
 
 
@@ -69,7 +77,7 @@ def construir_mapa(df: pd.DataFrame) -> folium.Map:
         folium.Map: Objeto mapa listo para renderizar.
     """
 
-    # ── Base del mapa — CartoDB Dark Matter (mapamundi oscuro) ───────────────
+    # ── Base del mapa — fondo oscuro uniforme sin etiquetas ──────────────────
     mapa = folium.Map(
         location=[20, 10],
         zoom_start=2,
@@ -77,6 +85,23 @@ def construir_mapa(df: pd.DataFrame) -> folium.Map:
         attr=TILE_DARK_ATTR,
         control_scale=True,
     )
+
+    # Igualar el color del océano (fondo del contenedor Leaflet) al del continente
+    mapa.get_root().html.add_child(folium.Element(
+        f'<style>.leaflet-container {{ background: {_COLOR_FONDO} !important; }}</style>'
+    ))
+
+    # Países con relleno oscuro uniforme y bordes blancos gruesos, sin nombres
+    folium.GeoJson(
+        _GEOJSON_PAISES,
+        style_function=lambda _: {
+            "fillColor":   _COLOR_FONDO,
+            "color":       "#ffffff",
+            "weight":      2.0,
+            "fillOpacity": 1.0,
+            "opacity":     0.85,
+        },
+    ).add_to(mapa)
 
     # ── Marcadores por visita (separados si comparten ubicación) ──────────────
     # Agrupar por ciudad para calcular offsets
