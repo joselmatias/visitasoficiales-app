@@ -1,7 +1,7 @@
 """
 mapa.py — Globo 3D satelital con globe.gl (Three.js via CDN, gratuito)
 Textura NASA Blue Marble + rotación horizontal automática
-Etiquetas fijas con nombre de ciudad
+Etiquetas HTML nativas (htmlElementsData) para correcta visualización de tildes
 Clic en ciudad/marcador → navega con ?vid=X para abrir panel de detalle completo
 """
 
@@ -30,6 +30,15 @@ def _html_globo(puntos_json: str) -> str:
     * {{ box-sizing: border-box; margin: 0; padding: 0; }}
     body {{ background: #0a0a14; overflow: hidden; font-family: sans-serif; }}
     #g   {{ width: 100vw; height: 520px; }}
+    .etiqueta {{
+      font-size: 13px;
+      font-weight: 700;
+      text-shadow: 0 0 6px #000, 0 0 12px #000;
+      pointer-events: auto;
+      cursor: pointer;
+      white-space: nowrap;
+      padding: 2px 4px;
+    }}
   </style>
 </head>
 <body>
@@ -51,7 +60,7 @@ def _html_globo(puntos_json: str) -> str:
         'https://unpkg.com/three-globe/example/img/earth-topology.png')
       .backgroundColor('#0a0a14')
 
-      // Marcadores
+      // Marcadores de punto
       .pointsData(pts)
       .pointLat('lat')
       .pointLng('lon')
@@ -60,17 +69,19 @@ def _html_globo(puntos_json: str) -> str:
       .pointAltitude(0.05)
       .onPointClick(p => abrirDetalle(p))
 
-      // Etiquetas fijas con nombre de ciudad
-      .labelsData(pts)
-      .labelLat('lat')
-      .labelLng('lon')
-      .labelText('ciudad')
-      .labelSize(1.4)
-      .labelDotRadius(0.35)
-      .labelDotOrientation(() => 'bottom')
-      .labelColor(p => p.color)
-      .labelResolution(3)
-      .onLabelClick(p => abrirDetalle(p))
+      // Etiquetas como elementos HTML reales (soporte nativo de Unicode/tildes)
+      .htmlElementsData(pts)
+      .htmlLat('lat')
+      .htmlLng('lon')
+      .htmlAltitude(0.08)
+      .htmlElement(d => {{
+        const el = document.createElement('div');
+        el.className = 'etiqueta';
+        el.textContent = d.ciudad;
+        el.style.color = d.color;
+        el.addEventListener('click', () => abrirDetalle(d));
+        return el;
+      }})
 
       (document.getElementById('g'));
 
@@ -119,7 +130,7 @@ def renderizar_mapa(df: pd.DataFrame) -> pd.Series | None:
     ]
 
     components.html(
-        _html_globo(json.dumps(puntos, ensure_ascii=True)),
+        _html_globo(json.dumps(puntos, ensure_ascii=False)),
         height=528,
         scrolling=False,
     )
