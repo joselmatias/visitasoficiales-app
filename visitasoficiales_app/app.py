@@ -109,6 +109,7 @@ def panel_detalle_principal(fila: pd.Series) -> None:
         if st.button("✕ Cerrar detalle", key="btn_cerrar", use_container_width=True):
             st.session_state["visita_seleccionada"] = None
             st.session_state["_ultimo_clic_mapa"] = None
+            st.session_state["_via_globo"] = False
             st.rerun()
 
 
@@ -118,6 +119,8 @@ def main():
         st.session_state["visita_seleccionada"] = None
     if "_ultimo_clic_mapa" not in st.session_state:
         st.session_state["_ultimo_clic_mapa"] = None
+    if "_via_globo" not in st.session_state:
+        st.session_state["_via_globo"] = False
 
     # ── Cargar datos ──────────────────────────────────────────────────────────
     df_completo = cargar_datos()
@@ -129,10 +132,11 @@ def main():
             match = df_completo[df_completo["id"] == int(vid_param)]
             if not match.empty:
                 st.session_state["visita_seleccionada"] = match.iloc[0]
+                # Marcar que la selección viene del globo (no debe limpiarse por filtros)
+                st.session_state["_via_globo"] = True
         except (ValueError, KeyError):
             pass
         del st.query_params["vid"]
-        st.stop()
 
     # ── Sidebar: logo + filtros ───────────────────────────────────────────────
     logo = _cargar_logo()
@@ -142,8 +146,9 @@ def main():
     df_filtrado = renderizar_filtros(df_completo)
 
     # ── Si la visita seleccionada ya no está en el filtro activo, limpiarla ───
+    # Excepción: si fue seleccionada haciendo clic en el globo, mostrarla siempre.
     visita_activa = st.session_state.get("visita_seleccionada")
-    if visita_activa is not None:
+    if visita_activa is not None and not st.session_state.get("_via_globo", False):
         ids_visibles = df_filtrado["id"].tolist()
         if int(visita_activa["id"]) not in ids_visibles:
             st.session_state["visita_seleccionada"] = None

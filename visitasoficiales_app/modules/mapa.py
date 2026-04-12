@@ -119,7 +119,7 @@ def renderizar_mapa(df: pd.DataFrame) -> pd.Series | None:
     ]
 
     components.html(
-        _html_globo(json.dumps(puntos, ensure_ascii=False)),
+        _html_globo(json.dumps(puntos, ensure_ascii=True)),
         height=528,
         scrolling=False,
     )
