@@ -21,16 +21,13 @@ COLORES_ACTIVIDAD = {
     "Visita Oficial":           "#4FC3F7",
 }
 
-# URL tiles satélite ESRI (gratuito, sin API key)
-TILE_SATELITE = (
-    "https://server.arcgisonline.com/ArcGIS/rest/"
-    "services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
+# CartoDB Dark Matter — mapamundi oscuro con bordes de países visibles
+TILE_DARK = (
+    "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
 )
-# URL tiles etiquetas/fronteras sobre el satélite
-TILE_LABELS = (
-    "https://services.arcgisonline.com/ArcGIS/rest/"
-    "services/Reference/World_Boundaries_and_Places/"
-    "MapServer/tile/{z}/{y}/{x}"
+TILE_DARK_ATTR = (
+    '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> '
+    'contributors &copy; <a href="https://carto.com/">CARTO</a>'
 )
 
 
@@ -72,25 +69,14 @@ def construir_mapa(df: pd.DataFrame) -> folium.Map:
         folium.Map: Objeto mapa listo para renderizar.
     """
 
-    # ── Base del mapa — satélite ESRI fijo desde el constructor ──────────────
-    # Se usa directamente en el constructor para evitar que Leaflet muestre
-    # su capa base predeterminada (OpenStreetMap) mientras carga.
+    # ── Base del mapa — CartoDB Dark Matter (mapamundi oscuro) ───────────────
     mapa = folium.Map(
         location=[20, 10],
         zoom_start=2,
-        tiles=TILE_SATELITE,
-        attr="Esri World Imagery",
+        tiles=TILE_DARK,
+        attr=TILE_DARK_ATTR,
         control_scale=True,
     )
-
-    # Etiquetas de países superpuestas al satélite
-    folium.TileLayer(
-        tiles=TILE_LABELS,
-        attr="Esri Reference",
-        name="Etiquetas",
-        overlay=True,
-        opacity=0.85,
-    ).add_to(mapa)
 
     # ── Marcadores por visita (separados si comparten ubicación) ──────────────
     # Agrupar por ciudad para calcular offsets
@@ -175,10 +161,10 @@ def construir_mapa(df: pd.DataFrame) -> folium.Map:
         force_separate_button=True,
     ).add_to(mapa)
 
-    # Minimapa de referencia (usa tile con atribución nativa para evitar error)
+    # Minimapa de referencia
     minimap_tile = folium.TileLayer(
-        tiles=TILE_SATELITE,
-        attr="Esri World Imagery",
+        tiles=TILE_DARK,
+        attr=TILE_DARK_ATTR,
     )
     MiniMap(
         tile_layer=minimap_tile,
