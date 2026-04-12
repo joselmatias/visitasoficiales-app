@@ -51,7 +51,6 @@ def renderizar_filtros(df: pd.DataFrame) -> pd.DataFrame:
     """
     _inicializar_estado()
 
-    st.sidebar.markdown("## Filtros")
     st.sidebar.markdown("---")
 
     # ── Filtro por país ───────────────────────────────────────────────────────

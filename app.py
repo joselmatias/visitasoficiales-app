@@ -145,13 +145,13 @@ def main():
         with col_logo:
             st.image(logo, use_container_width=True)
         with col_titulo:
-            st.title("🌍 Visitas Oficiales — Máxima Autoridad")
+            st.title("🌍 Visitas Oficiales — Superintendente de Competencia Económica")
             st.caption(
                 "Visualización geoespacial · Vista satélite · "
                 "Versión de prueba · 3 países · 3 visitas"
             )
     else:
-        st.title("🌍 Visitas Oficiales — Máxima Autoridad")
+        st.title("🌍 Visitas Oficiales — Superintendente de Competencia Económica")
         st.caption(
             "Visualización geoespacial · Vista satélite · "
             "Versión de prueba · 3 países · 3 visitas"
