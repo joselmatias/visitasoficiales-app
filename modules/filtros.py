@@ -9,41 +9,10 @@ import streamlit as st
 from datetime import date
 
 
-# Lista fija de tipos de actividad para la versión de prueba
-TIPOS_ACTIVIDAD = [
-    "Firma de Convenio",
-    "Conferencia Internacional",
-    "Visita Técnica",
-    "Reunión Bilateral",
-    "Foro / Cumbre",
-    "Visita Oficial",
-]
-
-# Lista de países disponibles
-PAISES_PRUEBA = [
-    "Perú", "Francia", "Escocia", "Corea del Sur", "Costa Rica", "Estados Unidos"
-]
-
-
-def _inicializar_estado() -> None:
-    """
-    Inicializa los valores predeterminados de los filtros en session_state
-    si aún no existen. Se llama una vez al arrancar la app.
-    """
-    if "filtro_pais" not in st.session_state:
-        st.session_state["filtro_pais"] = "Todos"
-    if "filtro_tipos" not in st.session_state:
-        st.session_state["filtro_tipos"] = TIPOS_ACTIVIDAD.copy()
-    if "filtro_fecha_inicio" not in st.session_state:
-        st.session_state["filtro_fecha_inicio"] = date(2024, 1, 1)
-    if "filtro_fecha_fin" not in st.session_state:
-        st.session_state["filtro_fecha_fin"] = date(2026, 12, 31)
-
-
 def renderizar_filtros(df: pd.DataFrame) -> pd.DataFrame:
     """
     Renderiza los controles de filtro en el sidebar y aplica el filtrado
-    al DataFrame recibido.
+    al DataFrame recibido. Tipos y países se derivan dinámicamente del DataFrame.
 
     Parámetros:
         df (pd.DataFrame): DataFrame original con todas las visitas.
@@ -51,23 +20,43 @@ def renderizar_filtros(df: pd.DataFrame) -> pd.DataFrame:
     Retorna:
         pd.DataFrame: DataFrame filtrado según los controles del usuario.
     """
-    _inicializar_estado()
+    # Valores dinámicos derivados del CSV actual
+    tipos_en_db  = sorted(df["tipo_actividad"].dropna().unique().tolist())
+    paises_en_db = sorted(df["pais"].dropna().unique().tolist())
+
+    # Inicializar session_state con los valores reales de la base de datos
+    if "filtro_pais" not in st.session_state:
+        st.session_state["filtro_pais"] = "Todos"
+    if "filtro_tipos" not in st.session_state:
+        st.session_state["filtro_tipos"] = tipos_en_db.copy()
+    if "filtro_fecha_inicio" not in st.session_state:
+        st.session_state["filtro_fecha_inicio"] = date(2024, 1, 1)
+    if "filtro_fecha_fin" not in st.session_state:
+        st.session_state["filtro_fecha_fin"] = date(2026, 12, 31)
+
+    # Sanitizar tipos guardados: descartar los que ya no existan en la DB
+    tipos_guardados = [t for t in st.session_state["filtro_tipos"] if t in tipos_en_db]
+    if not tipos_guardados:
+        tipos_guardados = tipos_en_db.copy()
 
     # ── Filtro por país ───────────────────────────────────────────────────────
+    opciones_pais = ["Todos"] + paises_en_db
+    pais_actual   = st.session_state.get("filtro_pais", "Todos")
+    if pais_actual not in opciones_pais:
+        pais_actual = "Todos"
+
     pais_seleccionado = st.sidebar.selectbox(
         label="País",
-        options=["Todos"] + PAISES_PRUEBA,
-        index=(["Todos"] + PAISES_PRUEBA).index(
-            st.session_state.get("filtro_pais", "Todos")
-        ),
+        options=opciones_pais,
+        index=opciones_pais.index(pais_actual),
         key="filtro_pais",
     )
 
-    # ── Filtro por tipo de actividad ──────────────────────────────────────────
+    # ── Filtro por tipo de actividad (solo tipos presentes en la DB) ──────────
     tipos_seleccionados = st.sidebar.multiselect(
         label="Tipo de actividad",
-        options=TIPOS_ACTIVIDAD,
-        default=st.session_state.get("filtro_tipos", TIPOS_ACTIVIDAD),
+        options=tipos_en_db,
+        default=tipos_guardados,
         key="filtro_tipos",
     )
 

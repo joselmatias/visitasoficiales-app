@@ -40,15 +40,56 @@ def _html_globo(puntos_json: str) -> str:
       white-space: nowrap;
       padding: 2px 4px;
     }}
+    #tooltip {{
+      display: none;
+      position: fixed;
+      background: rgba(10, 10, 30, 0.93);
+      border: 1px solid #555;
+      border-radius: 9px;
+      padding: 10px 14px;
+      color: #fff;
+      font-size: 13px;
+      line-height: 1.6;
+      pointer-events: none;
+      z-index: 9999;
+      max-width: 230px;
+      box-shadow: 0 4px 18px rgba(0,0,0,0.6);
+    }}
+    #tooltip .tip-ciudad {{ font-size: 15px; font-weight: 700; margin-bottom: 4px; }}
+    #tooltip .tip-tipo   {{ font-size: 11px; opacity: 0.75; margin-bottom: 6px; }}
+    #tooltip .tip-fecha  {{ font-size: 12px; }}
+    #tooltip .tip-hint   {{ font-size: 11px; opacity: 0.5; margin-top: 6px; font-style: italic; }}
   </style>
 </head>
 <body>
   <div id="g"></div>
+  <div id="tooltip">
+    <div class="tip-ciudad" id="tip-ciudad"></div>
+    <div class="tip-tipo"   id="tip-tipo"></div>
+    <div class="tip-fecha"  id="tip-fecha"></div>
+    <div class="tip-hint">Clic para ver detalle completo</div>
+  </div>
   <script src="https://unpkg.com/globe.gl/dist/globe.gl.min.js"></script>
   <script>
     const pts = {puntos_json};
+    const tip = document.getElementById('tooltip');
+
+    function mostrarTooltip(d, x, y) {{
+      document.getElementById('tip-ciudad').textContent = decodeURIComponent(d.ciudad) + ' — ' + d.pais;
+      document.getElementById('tip-tipo').textContent   = d.tipo;
+      document.getElementById('tip-fecha').textContent  = '📅 ' + d.fecha + ' · ' + d.dias + ' día' + (d.dias > 1 ? 's' : '');
+      document.getElementById('tip-ciudad').style.color = d.color;
+      tip.style.left    = (x + 14) + 'px';
+      tip.style.top     = (y - 10) + 'px';
+      tip.style.display = 'block';
+    }}
+
+    function ocultarTooltip() {{
+      tip.style.display = 'none';
+    }}
 
     function abrirDetalle(p) {{
+      ocultarTooltip();
       const url = new URL(window.parent.location.href);
       url.searchParams.set('vid', p.id);
       window.parent.location.href = url.toString();
@@ -70,7 +111,7 @@ def _html_globo(puntos_json: str) -> str:
       .pointAltitude(0.05)
       .onPointClick(p => abrirDetalle(p))
 
-      // Etiquetas como elementos HTML reales — soporte nativo de tildes/Unicode
+      // Etiquetas HTML — soporte nativo de tildes/Unicode + tooltip al pasar el cursor
       .htmlElementsData(pts)
       .htmlLat('lat')
       .htmlLng('lon')
@@ -80,6 +121,12 @@ def _html_globo(puntos_json: str) -> str:
         el.className = 'etiqueta';
         el.textContent = decodeURIComponent(d.ciudad);
         el.style.color = d.color;
+        el.addEventListener('mouseenter', e => mostrarTooltip(d, e.clientX, e.clientY));
+        el.addEventListener('mousemove',  e => {{
+          tip.style.left = (e.clientX + 14) + 'px';
+          tip.style.top  = (e.clientY - 10) + 'px';
+        }});
+        el.addEventListener('mouseleave', ocultarTooltip);
         el.addEventListener('click', () => abrirDetalle(d));
         return el;
       }})
@@ -136,23 +183,28 @@ def renderizar_mapa(df: pd.DataFrame) -> pd.Series | None:
         scrolling=False,
     )
 
-    # Botones alternativos (no requieren recarga de página)
-    st.caption("👆 Haz clic en una ciudad del globo · "
-               "o usa los botones para ver el detalle:")
-    cols = st.columns(len(df))
-    for col, (_, row) in zip(cols, df.iterrows()):
-        color = COLORES_ACTIVIDAD.get(str(row["tipo_actividad"]), "#FFFFFF")
-        with col:
-            st.markdown(
-                f"<div style='text-align:center;margin-bottom:3px;"
-                f"font-size:11px;color:{color};'>■ {row['tipo_actividad']}</div>",
-                unsafe_allow_html=True,
-            )
-            if st.button(
-                f"{row['pais']} — {row['ciudad']}",
-                key=f"btn_v_{int(row['id'])}",
-                use_container_width=True,
-            ):
-                return row
+    # Botones alternativos en filas de 4 (no requieren recarga de página)
+    st.caption("👆 Haz clic en una ciudad del globo o pasa el cursor para ver el resumen · "
+               "usa los botones para el detalle completo:")
+
+    COLS_POR_FILA = 4
+    filas = list(df.iterrows())
+    for inicio in range(0, len(filas), COLS_POR_FILA):
+        grupo = filas[inicio : inicio + COLS_POR_FILA]
+        cols  = st.columns(COLS_POR_FILA)
+        for col, (_, row) in zip(cols, grupo):
+            color = COLORES_ACTIVIDAD.get(str(row["tipo_actividad"]), "#FFFFFF")
+            with col:
+                st.markdown(
+                    f"<div style='text-align:center;margin-bottom:3px;"
+                    f"font-size:11px;color:{color};'>■ {row['tipo_actividad']}</div>",
+                    unsafe_allow_html=True,
+                )
+                if st.button(
+                    f"{row['pais']} — {row['ciudad']}",
+                    key=f"btn_v_{int(row['id'])}",
+                    use_container_width=True,
+                ):
+                    return row
 
     return None

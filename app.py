@@ -175,13 +175,10 @@ def main():
             st.image(foto_header, use_container_width=True)
     with col_titulo:
         st.title("🌍 Visitas Oficiales")
+        st.header("Superintendente de Competencia Económica")
         st.caption(
-            "Superintendente de Competencia Económica · "
-            "Visualización geoespacial · Vista satélite"
-        )
-        st.caption(
-            "Desarrollado por: Dirección Regional de Abogacía de la Competencia "
-            "— Intendencia Regional · DRAC-IR"
+            "Visualización geoespacial · Vista satélite · "
+            "Desarrollado por: DRAC-IR"
         )
     with col_logo:
         if logo:
