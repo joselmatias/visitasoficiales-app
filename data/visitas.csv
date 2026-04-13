@@ -1,4 +1,10 @@
 id,fecha,pais,ciudad,latitud,longitud,tipo_actividad,descripcion,contraparte,duracion_dias,foto_path
-1,2024-03-15,Japón,Tokio,35.6762,139.6503,Firma de Convenio,Suscripción de convenio de cooperación técnica en materia de movilidad urbana sostenible,Ministerio de Infraestructura de Japón,4,assets/fotos/foto_japon.jpg
-2,2024-02-08,Alemania,Berlín,52.5200,13.4050,Reunión Bilateral,Mesa de trabajo bilateral sobre financiamiento de infraestructura de transporte,Agencia GIZ Alemania,3,assets/fotos/foto_alemania.jfif
-3,2024-01-25,Colombia,Bogotá,4.7110,-74.0721,Reunión Bilateral,Intercambio de experiencias en gestión del sistema TransMilenio de Bogotá,Empresa de Transporte del Tercer Milenio,2,assets/fotos/foto_colombia.jfif
+1,2024-11-20,Perú,Lima,-12.0464,-77.0428,Conferencia Internacional,Taller del Centro Regional de Competencia de la OCDE "Ley de Competencia Económica",OCDE - Centro Regional de Competencia,3,
+2,2024-12-04,Francia,París,48.8566,2.3522,Foro / Cumbre,Foro Global de Competencia de la OCDE,OCDE,3,
+3,2025-02-26,Francia,París,48.8566,2.3522,Conferencia Internacional,Jornada Abierta de Competencia de la OCDE,OCDE,1,
+4,2025-05-07,Escocia,Edimburgo,55.9533,-3.1883,Conferencia Internacional,Reunión Anual del ICN,Red Internacional de Competencia (ICN),3,
+5,2025-06-16,Francia,París,48.8566,2.3522,Reunión Bilateral,Comité de Competencia de la OCDE,OCDE,5,
+6,2025-09-03,Corea del Sur,Seúl,37.5665,126.9780,Foro / Cumbre,13º Foro Internacional de Competencia,Korea Fair Trade Commission (KFTC),1,
+7,2025-12-03,Costa Rica,San José,9.9281,-84.0907,Conferencia Internacional,Diálogo Regional de Políticas de IA y Taller de Herramientas de Política Pública del BID y OCDE,BID y OCDE,3,
+8,2026-03-04,Francia,París,48.8566,2.3522,Conferencia Internacional,Jornada Abierta de Competencia de la OCDE,OCDE,1,
+9,2026-03-25,Estados Unidos,Washington,38.9072,-77.0369,Conferencia Internacional,Reunión de Primavera del ABA (American Bar Association),American Bar Association (ABA),3,

@@ -11,31 +11,33 @@ from PIL import Image
 
 from modules.filtros import renderizar_filtros
 from modules.mapa import renderizar_mapa
-from modules.detalle_visita import mostrar_foto, _badge_tipo, _formatear_fecha
+from modules.detalle_visita import _badge_tipo, _formatear_fecha
 
 
 CONTINENTES = {
-    "Japón":       "Asia",
-    "Alemania":    "Europa",
-    "Colombia":    "América del Sur",
-    "Brasil":      "América del Sur",
-    "Argentina":   "América del Sur",
-    "Chile":       "América del Sur",
-    "Perú":        "América del Sur",
-    "México":      "América del Norte",
-    "EEUU":        "América del Norte",
+    "Japón":          "Asia",
+    "Alemania":       "Europa",
+    "Colombia":       "América del Sur",
+    "Brasil":         "América del Sur",
+    "Argentina":      "América del Sur",
+    "Chile":          "América del Sur",
+    "Perú":           "América del Sur",
+    "México":         "América del Norte",
+    "EEUU":           "América del Norte",
     "Estados Unidos": "América del Norte",
-    "Canadá":      "América del Norte",
-    "Francia":     "Europa",
-    "España":      "Europa",
-    "Italia":      "Europa",
-    "Reino Unido": "Europa",
-    "China":       "Asia",
-    "India":       "Asia",
-    "Corea del Sur": "Asia",
-    "Australia":   "Oceanía",
-    "Sudáfrica":   "África",
-    "Egipto":      "África",
+    "Canadá":         "América del Norte",
+    "Francia":        "Europa",
+    "España":         "Europa",
+    "Italia":         "Europa",
+    "Reino Unido":    "Europa",
+    "Escocia":        "Europa",
+    "China":          "Asia",
+    "India":          "Asia",
+    "Corea del Sur":  "Asia",
+    "Australia":      "Oceanía",
+    "Sudáfrica":      "África",
+    "Egipto":         "África",
+    "Costa Rica":     "América Central",
 }
 
 
@@ -47,6 +49,22 @@ def _cargar_logo() -> Image.Image | None:
         fondo = Image.new("RGBA", img.size, (255, 255, 255, 255))
         fondo.paste(img, mask=img.split()[3])
         return fondo.convert("RGB")
+    return None
+
+
+def _cargar_foto_header() -> Image.Image | None:
+    """Carga la foto de la máxima autoridad para el encabezado."""
+    base = os.path.dirname(__file__)
+    candidatos = [
+        os.path.join(base, "assets", "foto_autoridad.jpg"),
+        os.path.join(base, "assets", "foto_autoridad.png"),
+        os.path.join(base, "assets", "fotos", "foto_japon.jpg"),
+        os.path.join(base, "assets", "fotos", "foto_alemania.jfif"),
+        os.path.join(base, "assets", "fotos", "foto_colombia.jfif"),
+    ]
+    for ruta in candidatos:
+        if os.path.exists(ruta):
+            return Image.open(ruta).convert("RGB")
     return None
 
 st.set_page_config(
@@ -86,31 +104,25 @@ def calcular_metricas(df: pd.DataFrame) -> dict:
 
 def panel_detalle_principal(fila: pd.Series) -> None:
     st.divider()
-    col_foto, col_info = st.columns([1, 2])
+    st.markdown(f"## {fila['pais']} — {fila['ciudad']}")
+    tipo = str(fila.get("tipo_actividad", ""))
+    st.markdown(_badge_tipo(tipo), unsafe_allow_html=True)
+    st.markdown("")
 
-    with col_foto:
-        mostrar_foto(fila, use_container_width=True)
+    m1, m2 = st.columns(2)
+    with m1:
+        st.metric("Duración", f"{int(fila['duracion_dias'])} días")
+    with m2:
+        st.metric("Fecha", _formatear_fecha(str(fila.get("fecha", ""))))
 
-    with col_info:
-        st.markdown(f"## {fila['pais']} — {fila['ciudad']}")
-        tipo = str(fila.get("tipo_actividad", ""))
-        st.markdown(_badge_tipo(tipo), unsafe_allow_html=True)
-        st.markdown("")
+    st.write(fila.get("descripcion", "Sin descripción disponible."))
+    st.info(f"**Contraparte:** {fila.get('contraparte', 'No especificada')}")
 
-        m1, m2 = st.columns(2)
-        with m1:
-            st.metric("Duración", f"{int(fila['duracion_dias'])} días")
-        with m2:
-            st.metric("Fecha", _formatear_fecha(str(fila.get("fecha", ""))))
-
-        st.write(fila.get("descripcion", "Sin descripción disponible."))
-        st.info(f"**Contraparte:** {fila.get('contraparte', 'No especificada')}")
-
-        if st.button("✕ Cerrar detalle", key="btn_cerrar", use_container_width=True):
-            st.session_state["visita_seleccionada"] = None
-            st.session_state["_ultimo_clic_mapa"] = None
-            st.session_state["_via_globo"] = False
-            st.rerun()
+    if st.button("✕ Cerrar detalle", key="btn_cerrar", use_container_width=True):
+        st.session_state["visita_seleccionada"] = None
+        st.session_state["_ultimo_clic_mapa"] = None
+        st.session_state["_via_globo"] = False
+        st.rerun()
 
 
 def main():
@@ -155,31 +167,25 @@ def main():
             st.session_state["_ultimo_clic_mapa"] = None
             visita_activa = None
 
-    # ── Cabecera: logo + título ───────────────────────────────────────────────
-    if logo:
-        col_logo, col_titulo = st.columns([1, 5])
-        with col_logo:
-            st.image(logo, use_container_width=True)
-        with col_titulo:
-            st.title("🌍 Visitas Oficiales — Superintendente de Competencia Económica")
-            st.caption(
-                "Visualización geoespacial · Vista satélite · "
-                "Versión de prueba · 3 países · 3 visitas"
-            )
-            st.caption(
-                "Desarrollado por: Dirección Regional de Abogacía de la Competencia "
-                "— Intendencia Regional · DRAC-IR"
-            )
-    else:
-        st.title("🌍 Visitas Oficiales — Superintendente de Competencia Económica")
+    # ── Cabecera: foto izquierda + título + logo derecho ─────────────────────
+    foto_header = _cargar_foto_header()
+    col_foto, col_titulo, col_logo = st.columns([1, 5, 1])
+    with col_foto:
+        if foto_header:
+            st.image(foto_header, use_container_width=True)
+    with col_titulo:
+        st.title("🌍 Visitas Oficiales")
         st.caption(
-            "Visualización geoespacial · Vista satélite · "
-            "Versión de prueba · 3 países · 3 visitas"
+            "Superintendente de Competencia Económica · "
+            "Visualización geoespacial · Vista satélite"
         )
         st.caption(
             "Desarrollado por: Dirección Regional de Abogacía de la Competencia "
             "— Intendencia Regional · DRAC-IR"
         )
+    with col_logo:
+        if logo:
+            st.image(logo, use_container_width=True)
 
     # ── Métricas ──────────────────────────────────────────────────────────────
     metricas = calcular_metricas(df_filtrado)

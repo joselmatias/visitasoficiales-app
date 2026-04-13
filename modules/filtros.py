@@ -19,8 +19,10 @@ TIPOS_ACTIVIDAD = [
     "Visita Oficial",
 ]
 
-# Lista de países disponibles en la versión de prueba
-PAISES_PRUEBA = ["Japón", "Alemania", "Colombia"]
+# Lista de países disponibles
+PAISES_PRUEBA = [
+    "Perú", "Francia", "Escocia", "Corea del Sur", "Costa Rica", "Estados Unidos"
+]
 
 
 def _inicializar_estado() -> None:
@@ -35,7 +37,7 @@ def _inicializar_estado() -> None:
     if "filtro_fecha_inicio" not in st.session_state:
         st.session_state["filtro_fecha_inicio"] = date(2024, 1, 1)
     if "filtro_fecha_fin" not in st.session_state:
-        st.session_state["filtro_fecha_fin"] = date(2024, 12, 31)
+        st.session_state["filtro_fecha_fin"] = date(2026, 12, 31)
 
 
 def renderizar_filtros(df: pd.DataFrame) -> pd.DataFrame:
@@ -84,7 +86,7 @@ def renderizar_filtros(df: pd.DataFrame) -> pd.DataFrame:
     with col_b:
         fecha_fin = st.date_input(
             label="Hasta",
-            value=st.session_state.get("filtro_fecha_fin", date(2024, 12, 31)),
+            value=st.session_state.get("filtro_fecha_fin", date(2026, 12, 31)),
             min_value=date(2020, 1, 1),
             max_value=date(2030, 12, 31),
             key="filtro_fecha_fin",
