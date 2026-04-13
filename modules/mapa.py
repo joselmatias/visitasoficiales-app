@@ -1,11 +1,12 @@
 """
 mapa.py — Globo 3D satelital con globe.gl (Three.js via CDN, gratuito)
 Textura NASA Blue Marble + rotación horizontal automática
-Etiquetas fijas con nombre de ciudad
+Etiquetas HTML nativas (htmlElementsData + decodeURIComponent) para tildes correctas
 Clic en ciudad/marcador → navega con ?vid=X para abrir panel de detalle completo
 """
 
 import json
+from urllib.parse import quote
 import pandas as pd
 import streamlit as st
 import streamlit.components.v1 as components
@@ -30,6 +31,15 @@ def _html_globo(puntos_json: str) -> str:
     * {{ box-sizing: border-box; margin: 0; padding: 0; }}
     body {{ background: #0a0a14; overflow: hidden; font-family: sans-serif; }}
     #g   {{ width: 100vw; height: 520px; }}
+    .etiqueta {{
+      font-size: 13px;
+      font-weight: 700;
+      text-shadow: 0 0 6px #000, 0 0 12px #000;
+      pointer-events: auto;
+      cursor: pointer;
+      white-space: nowrap;
+      padding: 2px 4px;
+    }}
   </style>
 </head>
 <body>
@@ -51,7 +61,7 @@ def _html_globo(puntos_json: str) -> str:
         'https://unpkg.com/three-globe/example/img/earth-topology.png')
       .backgroundColor('#0a0a14')
 
-      // Marcadores
+      // Marcadores de punto
       .pointsData(pts)
       .pointLat('lat')
       .pointLng('lon')
@@ -60,17 +70,19 @@ def _html_globo(puntos_json: str) -> str:
       .pointAltitude(0.05)
       .onPointClick(p => abrirDetalle(p))
 
-      // Etiquetas fijas con nombre de ciudad
-      .labelsData(pts)
-      .labelLat('lat')
-      .labelLng('lon')
-      .labelText('ciudad')
-      .labelSize(1.4)
-      .labelDotRadius(0.35)
-      .labelDotOrientation(() => 'bottom')
-      .labelColor(p => p.color)
-      .labelResolution(3)
-      .onLabelClick(p => abrirDetalle(p))
+      // Etiquetas como elementos HTML reales — soporte nativo de tildes/Unicode
+      .htmlElementsData(pts)
+      .htmlLat('lat')
+      .htmlLng('lon')
+      .htmlAltitude(0.08)
+      .htmlElement(d => {{
+        const el = document.createElement('div');
+        el.className = 'etiqueta';
+        el.textContent = decodeURIComponent(d.ciudad);
+        el.style.color = d.color;
+        el.addEventListener('click', () => abrirDetalle(d));
+        return el;
+      }})
 
       (document.getElementById('g'));
 
@@ -110,7 +122,7 @@ def renderizar_mapa(df: pd.DataFrame) -> pd.Series | None:
             "lon":   float(row["longitud"]),
             "color": COLORES_ACTIVIDAD.get(str(row["tipo_actividad"]), "#FFFFFF"),
             "pais":  str(row["pais"]),
-            "ciudad":str(row["ciudad"]),
+            "ciudad": quote(str(row["ciudad"])),
             "tipo":  str(row["tipo_actividad"]),
             "fecha": str(row["fecha"])[:10],
             "dias":  int(row["duracion_dias"]),
