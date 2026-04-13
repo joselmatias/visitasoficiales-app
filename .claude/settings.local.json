@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(Copy-Item \"visitasoficiales_app\\\\modules\\\\mapa.py\" \"modules\\\\mapa.py\" -Force)",
+      "Bash(git -C \"c:\\\\Users\\\\Admin\\\\Documents\\\\sce 26\\\\streamlit abogacia de la competencia maxima autoridad\" add \"visitasoficiales_app/modules/mapa.py\" \"modules/mapa.py\")",
+      "Bash(git -C \"c:\\\\Users\\\\Admin\\\\Documents\\\\sce 26\\\\streamlit abogacia de la competencia maxima autoridad\" status)",
+      "Bash(dir)",
+      "Bash(git -C \"c:/Users/Admin/Documents/sce 26/streamlit abogacia de la competencia maxima autoridad\" remote -v)",
+      "Bash(git -C \"c:/Users/Admin/Documents/sce 26/streamlit abogacia de la competencia maxima autoridad\" log --oneline --all)"
+    ]
+  }
+}
