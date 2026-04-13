@@ -6,6 +6,7 @@ Clic en ciudad/marcador → navega con ?vid=X para abrir panel de detalle comple
 """
 
 import json
+from urllib.parse import quote
 import pandas as pd
 import streamlit as st
 import streamlit.components.v1 as components
@@ -77,7 +78,7 @@ def _html_globo(puntos_json: str) -> str:
       .htmlElement(d => {{
         const el = document.createElement('div');
         el.className = 'etiqueta';
-        el.textContent = d.ciudad;
+        el.textContent = decodeURIComponent(d.ciudad);
         el.style.color = d.color;
         el.addEventListener('click', () => abrirDetalle(d));
         return el;
@@ -121,7 +122,7 @@ def renderizar_mapa(df: pd.DataFrame) -> pd.Series | None:
             "lon":   float(row["longitud"]),
             "color": COLORES_ACTIVIDAD.get(str(row["tipo_actividad"]), "#FFFFFF"),
             "pais":  str(row["pais"]),
-            "ciudad":str(row["ciudad"]),
+            "ciudad": quote(str(row["ciudad"])),
             "tipo":  str(row["tipo_actividad"]),
             "fecha": str(row["fecha"])[:10],
             "dias":  int(row["duracion_dias"]),
