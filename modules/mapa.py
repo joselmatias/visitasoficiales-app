@@ -6,10 +6,29 @@ Clic en ciudad/marcador → navega con ?vid=X para abrir panel de detalle comple
 """
 
 import json
+from datetime import timedelta
 from urllib.parse import quote
 import pandas as pd
 import streamlit as st
 import streamlit.components.v1 as components
+
+MESES_ES = {
+    1: "enero", 2: "febrero", 3: "marzo", 4: "abril",
+    5: "mayo", 6: "junio", 7: "julio", 8: "agosto",
+    9: "septiembre", 10: "octubre", 11: "noviembre", 12: "diciembre",
+}
+
+
+def _rango_fechas(fecha_inicio: pd.Timestamp, duracion: int) -> str:
+    """Devuelve 'DD – DD de Mes de AAAA' o 'DD de Mes de AAAA' si es 1 día."""
+    fi = fecha_inicio
+    if duracion <= 1:
+        return f"{fi.day} de {MESES_ES[fi.month]} de {fi.year}"
+    ff = fi + timedelta(days=duracion - 1)
+    if fi.month == ff.month:
+        return f"{fi.day} – {ff.day} de {MESES_ES[fi.month]} de {fi.year}"
+    return (f"{fi.day} de {MESES_ES[fi.month]} – "
+            f"{ff.day} de {MESES_ES[ff.month]} de {ff.year}")
 
 # Paleta de colores por tipo de actividad
 COLORES_ACTIVIDAD = {
@@ -183,28 +202,60 @@ def renderizar_mapa(df: pd.DataFrame) -> pd.Series | None:
         scrolling=False,
     )
 
-    # Botones alternativos en filas de 4 (no requieren recarga de página)
-    st.caption("👆 Haz clic en una ciudad del globo o pasa el cursor para ver el resumen · "
-               "usa los botones para el detalle completo:")
+    # ── Acordeones por año ────────────────────────────────────────────────────
+    st.caption("👆 Haz clic en una ciudad del globo para ver el detalle · "
+               "o despliega el año para consultar todos los eventos:")
 
-    COLS_POR_FILA = 4
-    filas = list(df.iterrows())
-    for inicio in range(0, len(filas), COLS_POR_FILA):
-        grupo = filas[inicio : inicio + COLS_POR_FILA]
-        cols  = st.columns(COLS_POR_FILA)
-        for col, (_, row) in zip(cols, grupo):
-            color = COLORES_ACTIVIDAD.get(str(row["tipo_actividad"]), "#FFFFFF")
-            with col:
+    df_tmp = df.copy()
+    df_tmp["_fecha_ts"] = pd.to_datetime(df_tmp["fecha"])
+    df_tmp["_year"]     = df_tmp["_fecha_ts"].dt.year
+    años = sorted(df_tmp["_year"].unique())
+
+    for año in años:
+        eventos = df_tmp[df_tmp["_year"] == año].sort_values("_fecha_ts")
+        n = len(eventos)
+        label = f"**{año}**  —  {n} evento{'s' if n > 1 else ''}"
+        with st.expander(label, expanded=False):
+            for _, row in eventos.iterrows():
+                color  = COLORES_ACTIVIDAD.get(str(row["tipo_actividad"]), "#FFFFFF")
+                rango  = _rango_fechas(row["_fecha_ts"], int(row["duracion_dias"]))
+                dias   = int(row["duracion_dias"])
+                badge  = (
+                    f'<span style="background:{color};color:#000;'
+                    f'padding:2px 9px;border-radius:10px;'
+                    f'font-size:0.75em;font-weight:700;">'
+                    f'{row["tipo_actividad"]}</span>'
+                )
+
                 st.markdown(
-                    f"<div style='text-align:center;margin-bottom:3px;"
-                    f"font-size:11px;color:{color};'>■ {row['tipo_actividad']}</div>",
+                    f"""
+<div style="border:1px solid #333;border-radius:10px;
+            padding:14px 18px;margin-bottom:12px;background:#0d0d1f;">
+  <div style="font-size:1.05em;font-weight:700;margin-bottom:6px;">
+    {row['descripcion']}
+  </div>
+  <div style="margin-bottom:8px;">{badge}</div>
+  <table style="width:100%;border-collapse:collapse;font-size:0.9em;color:#ccc;">
+    <tr>
+      <td style="padding:3px 8px 3px 0;width:50%;">
+        📍 <b>{row['ciudad']}</b>, {row['pais']}
+      </td>
+      <td style="padding:3px 0;">
+        📅 {rango}
+      </td>
+    </tr>
+    <tr>
+      <td style="padding:3px 8px 3px 0;">
+        ⏱ {dias} día{'s' if dias > 1 else ''}
+      </td>
+      <td style="padding:3px 0;">
+        🤝 {row.get('contraparte', '—')}
+      </td>
+    </tr>
+  </table>
+</div>
+""",
                     unsafe_allow_html=True,
                 )
-                if st.button(
-                    f"{row['pais']} — {row['ciudad']}",
-                    key=f"btn_v_{int(row['id'])}",
-                    use_container_width=True,
-                ):
-                    return row
 
     return None
