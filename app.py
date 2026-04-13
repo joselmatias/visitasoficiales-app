@@ -11,7 +11,6 @@ from PIL import Image
 
 from modules.filtros import renderizar_filtros
 from modules.mapa import renderizar_mapa
-from modules.detalle_visita import _badge_tipo, _formatear_fecha
 
 
 CONTINENTES = {
@@ -102,53 +101,9 @@ def calcular_metricas(df: pd.DataFrame) -> dict:
     }
 
 
-def panel_detalle_principal(fila: pd.Series) -> None:
-    st.divider()
-    st.markdown(f"## {fila['pais']} — {fila['ciudad']}")
-    tipo = str(fila.get("tipo_actividad", ""))
-    st.markdown(_badge_tipo(tipo), unsafe_allow_html=True)
-    st.markdown("")
-
-    m1, m2 = st.columns(2)
-    with m1:
-        st.metric("Duración", f"{int(fila['duracion_dias'])} días")
-    with m2:
-        st.metric("Fecha", _formatear_fecha(str(fila.get("fecha", ""))))
-
-    st.write(fila.get("descripcion", "Sin descripción disponible."))
-    st.info(f"**Contraparte:** {fila.get('contraparte', 'No especificada')}")
-
-    if st.button("✕ Cerrar detalle", key="btn_cerrar", use_container_width=True):
-        st.session_state["visita_seleccionada"] = None
-        st.session_state["_ultimo_clic_mapa"] = None
-        st.session_state["_via_globo"] = False
-        st.rerun()
-
-
 def main():
-    # ── Inicializar session_state ─────────────────────────────────────────────
-    if "visita_seleccionada" not in st.session_state:
-        st.session_state["visita_seleccionada"] = None
-    if "_ultimo_clic_mapa" not in st.session_state:
-        st.session_state["_ultimo_clic_mapa"] = None
-    if "_via_globo" not in st.session_state:
-        st.session_state["_via_globo"] = False
-
     # ── Cargar datos ──────────────────────────────────────────────────────────
     df_completo = cargar_datos()
-
-    # ── Clic en globo: leer ?vid= y abrir detalle ─────────────────────────────
-    vid_param = st.query_params.get("vid")
-    if vid_param:
-        try:
-            match = df_completo[df_completo["id"] == int(vid_param)]
-            if not match.empty:
-                st.session_state["visita_seleccionada"] = match.iloc[0]
-                st.session_state["_via_globo"] = True
-        except (ValueError, KeyError):
-            pass
-        del st.query_params["vid"]
-        st.rerun()
 
     # ── Sidebar: logo + filtros ───────────────────────────────────────────────
     logo = _cargar_logo()
@@ -156,16 +111,6 @@ def main():
         st.sidebar.image(logo, use_container_width=True)
 
     df_filtrado = renderizar_filtros(df_completo)
-
-    # ── Si la visita seleccionada ya no está en el filtro activo, limpiarla ───
-    # Excepción: clic en globo siempre muestra el detalle sin importar filtros.
-    visita_activa = st.session_state.get("visita_seleccionada")
-    if visita_activa is not None and not st.session_state.get("_via_globo", False):
-        ids_visibles = df_filtrado["id"].tolist()
-        if int(visita_activa["id"]) not in ids_visibles:
-            st.session_state["visita_seleccionada"] = None
-            st.session_state["_ultimo_clic_mapa"] = None
-            visita_activa = None
 
     # ── Cabecera: foto izquierda + título + logo derecho ─────────────────────
     foto_header = _cargar_foto_header()
@@ -199,21 +144,7 @@ def main():
     st.divider()
 
     # ── Mapa satélite ─────────────────────────────────────────────────────────
-    fila_clickeada = renderizar_mapa(df_filtrado)
-
-    # Actualizar la visita seleccionada si hubo un clic nuevo.
-    # No se usa st.rerun() porque st_folium ya genera un rerun automático
-    # al recibir la interacción del usuario. El doble rerun causaba que
-    # el mapa se recreara mostrando la capa callejero por defecto.
-    if fila_clickeada is not None:
-        st.session_state["visita_seleccionada"] = fila_clickeada
-
-    # ── Panel de detalle debajo del mapa ──────────────────────────────────────
-    visita_activa = st.session_state.get("visita_seleccionada")
-    if visita_activa is not None:
-        panel_detalle_principal(visita_activa)
-    else:
-        st.caption("👆 Haz clic sobre un marcador del mapa para ver el detalle de la visita.")
+    renderizar_mapa(df_filtrado)
 
 
 if __name__ == "__main__":
